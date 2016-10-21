@@ -20,7 +20,7 @@ model_name = "English" + "_" + trainID
 
 # Training configs
 num_epochs = 20000
-batch_size = 1
+batch_size = 16
 disp_steps = 1000
 checkpoint_steps = 1
 
@@ -34,7 +34,7 @@ model_dir = './model/2016-09-11_13:36:05_8720/'
 
 # Loading the data
 
-train_loader = utils.Loader('../psl_data/244Images/traindata',['inputfile_0'], batch_size)
+train_loader = utils.Loader('../psl_data/244Images/traindata',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13','data_14'], batch_size)
 
 def LOG(Str):
     f = open(logFilename, "a")

@@ -42,13 +42,6 @@ def read_file(filename, datadir, outdir, resize = False, newsize = 1):
     outfile = open(label_outfile, 'wb')
     pickle.dump(label_list, outfile)
     outfile.close()
-    '''
-    f = open(label_outfile, 'rb')
-    ans = pickle.load(f)
-    print('load')
-    print(ans[0])
-    f.close()
-    '''
 
 def get_all_filename(pathname):
     filename_list = []
@@ -62,7 +55,7 @@ def get_all_filename(pathname):
 
 def make_readfile(datadir, outputdir):
     folders = os.listdir(datadir)
-    base_filename = 'inputfile_'
+    base_filename = 'data_'
     filesize = 500
     count = 0
     file_list = []
