@@ -26,7 +26,10 @@ def read_file(filename, datadir, outdir, resize = False, newsize = 1):
                 label = lf.readline()
                 if label[-1] == '\n':
                     label = label[:-1]
-            label_list.append(label)
+                mapped_label = []
+                for w in label:
+                    mapped_label.append(ord(w))
+            label_list.append(mapped_label)
 
     image_outfile = os.path.join(outdir, out_filename + '_image.p')
     print('Writing to: ', image_outfile)
@@ -39,6 +42,13 @@ def read_file(filename, datadir, outdir, resize = False, newsize = 1):
     outfile = open(label_outfile, 'wb')
     pickle.dump(label_list, outfile)
     outfile.close()
+    '''
+    f = open(label_outfile, 'rb')
+    ans = pickle.load(f)
+    print('load')
+    print(ans[0])
+    f.close()
+    '''
 
 def get_all_filename(pathname):
     filename_list = []
@@ -81,9 +91,9 @@ def bundle_data(file_list, datadir, outdir):
         read_file(f, datadir, outdir, resize=1, newsize=32)
 
 if __name__ == '__main__':
-    datadir = '/home/jia/psl/tf_rnn/psl_try/data/244Images/train_sepf244'
-    outputdir = '/home/jia/psl/tf_rnn/psl_try/data/244Images/trainfile'
-    outdir = '/home/jia/psl/tf_rnn/psl_try/data/244Images/traindata'
+    datadir = '/home/jia/psl/tf_rnn/psl_data/244Images/train_sepf244'
+    outputdir = '/home/jia/psl/tf_rnn/psl_data/244Images/trainfile'
+    outdir = '/home/jia/psl/tf_rnn/psl_data/244Images/traindata'
     file_list = make_readfile(datadir, outputdir)
     bundle_data(file_list, datadir, outdir)
 

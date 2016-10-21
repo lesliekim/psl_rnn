@@ -1,0 +1,10 @@
+trainID = 2016-10-20_16:05:37_19416
+batch_Size = 16
+target len = 38682
+keep prob:
+1.0
+1.0
+1.0
+Launching the graph...
+Batch 0/32, batch_cost = 4975.580, batch_err = 7006/1329, Time: 6.214
+Target:
