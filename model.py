@@ -8,7 +8,7 @@ class CnnRnnModel(object):
         # Network configs
         momentum = 0.9
         learning_rate = 1e-4
-        model_type = 'gru'
+        model_type = 'lstm' #'gru'
         image_height = 32 #48
         # Accounting the 0th indice + blank label = 121 characters
         num_classes = 128 #121

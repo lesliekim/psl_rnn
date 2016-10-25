@@ -3,7 +3,7 @@ import os
 
 import tensorflow as tf
 import numpy as np
-from model import BiRnnModel
+from model import CnnRnnModel
 
 import utils
 
@@ -52,7 +52,7 @@ LOG(keep_prob_3)
 # THE MAIN CODE!
 
 with tf.device('/cpu:0'):
-    model = BiRnnModel(batch_size, keep_prob_1, keep_prob_2, keep_prob_3)
+    model = CnnRnnModel(batch_size)
 
 
 config = tf.ConfigProto(allow_soft_placement=True)

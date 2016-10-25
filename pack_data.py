@@ -1,6 +1,7 @@
 import os
 import Image
 import pickle
+import shutil
 import numpy as np
 
 def read_file(filename, datadir, outdir, resize = False, newsize = 1):
@@ -83,10 +84,25 @@ def bundle_data(file_list, datadir, outdir):
     for f in file_list:
         read_file(f, datadir, outdir, resize=1, newsize=32)
 
+def movefile(src_dir, dst_dir):
+    assert os.path.exists(src_dir)
+    assert os.path.exists(dst_dir)
+    src_folders = os.listdir(src_dir)
+    for folder in src_folders:
+        src_path = os.path.join(src_dir, folder)
+        dst_path = os.path.join(dst_dir, folder)
+        print('Moving files from ' + src_path + ' to ' + dst_path)
+        files = os.listdir(src_path)
+        for f in files:
+            src_file = os.path.join(src_path, f)
+            dst_file = os.path.join(dst_path, f)
+            shutil.copyfile(src_file, dst_file)
+
+#movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
+
 if __name__ == '__main__':
-    datadir = '/home/jia/psl/tf_rnn/psl_data/244Images/train_sepf244'
-    outputdir = '/home/jia/psl/tf_rnn/psl_data/244Images/trainfile'
-    outdir = '/home/jia/psl/tf_rnn/psl_data/244Images/traindata'
+    datadir = '/home/jia/psl/tf_rnn/psl_data/gulliver_out'
+    outputdir = '/home/jia/psl/tf_rnn/psl_data/gulliver_trainfile'
+    outdir = '/home/jia/psl/tf_rnn/psl_data/gulliver_traindata'
     file_list = make_readfile(datadir, outputdir)
     bundle_data(file_list, datadir, outdir)
-

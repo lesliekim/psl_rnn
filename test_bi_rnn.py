@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import numpy as np
 import utils
-from model import BiRnnModel
+from model import CnnRnnModel
 
 arg = sys.argv[1]
 epoch = sys.argv[2]
@@ -33,7 +33,7 @@ LOG("Test ID: " + str(testID))
 # THE MAIN CODE!
 with tf.device('/gpu:1'):
 
-    model = BiRnnModel(batch_size)
+    model = CnnRnnModel(batch_size)
 
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True
