@@ -2,6 +2,18 @@ import os
 import pickle
 import random
 import numpy as np
+import re
+
+param_file = open('param.txt','r')
+param = param_file.read()
+pattern = re.compile(r'height:\s*\d+', re.M)
+match = pattern.findall(param)
+if match:
+    norm_height = int(match[0].split(':')[1])
+else:
+    sys.exit('image height is not defined in param.txt!')
+
+param_file.close()
 
 def load_set(datadir, dataname):
     filename = os.path.join(datadir, dataname + '_image.p')
@@ -41,10 +53,10 @@ def get_row(sparse_tuple, row, dtype=np.int32):
     return optlist
 
 class Loader(object):
-    def __init__(self, datadir, set_list = [], batch_size = 1, norm_width = 32):
+    def __init__(self, datadir, set_list = [], batch_size = 1):
         self.count = 0
         self.batch_size = batch_size
-        self.norm_width = norm_width
+        self.norm_height = norm_height
         print('Data Loader initializing ...')
         self.image = []
         self.label = []
@@ -73,7 +85,7 @@ class Loader(object):
         step_batch = np.zeros(shape=[len(x_batch_seq)], dtype='int64')
         for i in xrange(len(step_batch)):
             step_batch[i] = np.shape(x_batch_seq[i])[1]
-        x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch), self.norm_width, 1])
+        x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch), self.norm_height, 1])
         for i in xrange(len(step_batch)):
             x_batch[i, :step_batch[i], :, 0] = np.transpose(x_batch_seq[i][np.newaxis, :, :], (0, 2, 1))
 

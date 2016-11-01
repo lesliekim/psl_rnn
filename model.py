@@ -1,7 +1,18 @@
 import tensorflow as tf
 from tensorflow.python.ops import ctc_ops as ctc  # ctc no more in contrib
 from tensorflow.contrib import grid_rnn
+import re
 
+param_file = open('param.txt','r')
+param = param_file.read()
+pattern = re.compile(r'height:\s*\d+',re.M)
+match = pattern.findall(param)
+if match:
+    height = int(match[0].split(':')[1])
+else:
+    sys.exit('image heigth is not defined in param.txt!')
+
+param_file.close()
 
 class CnnRnnModel(object):
     def __init__(self, batch_size=1):
@@ -9,7 +20,7 @@ class CnnRnnModel(object):
         momentum = 0.9
         learning_rate = 1e-4
         model_type = 'lstm' #'gru'
-        image_height = 32 #48
+        image_height = height #48
         # Accounting the 0th indice + blank label = 121 characters
         num_classes = 128 #121
         num_hidden_1 = 50
@@ -113,7 +124,7 @@ class BiRnnModel(object):
         momentum = 0.9
         learning_rate = 1e-4
         model_type = 'lstm'
-        image_height = 32 #48
+        image_height = height #48
         # Accounting the 0th indice + blank label = 121 characters
         num_classes = 128 #121
         num_hidden_1 = 50

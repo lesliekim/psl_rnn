@@ -3,6 +3,11 @@ import Image
 import pickle
 import shutil
 import numpy as np
+import re
+
+param_file = open('param.txt','r')
+param = param_file.read()
+param_file.close()
 
 def read_file(filename, datadir, outdir, resize = False, newsize = 1):
     image_list = []
@@ -10,27 +15,40 @@ def read_file(filename, datadir, outdir, resize = False, newsize = 1):
     out_filename = filename.split('/')[-1]
     out_filename = out_filename.split('.')[0]
 
+    threshold = 90 # throw away too long data(trick, hehe)
+    num_classes = 128 # how many labels
+
     with open(filename,'r') as f:
         for name in f:
             if name[-1] == '\n':
                 name = name[:-1]
-            image = Image.open(os.path.join(datadir, name + '.bin.png'))
-            if resize:
-                dims = (int(round(newsize * image.size[0] / image.size[1])), newsize)
-                image = image.resize(dims)
-            image = np.asarray(image, dtype=np.uint32)
-            # change to black back ground
-            image = 255 - image
-            image_list.append(image)
-
+            
+            is_valid = True
             with open(os.path.join(datadir, name + '.txt')) as lf:
                 label = lf.readline()
                 if label[-1] == '\n':
                     label = label[:-1]
-                mapped_label = []
-                for w in label:
-                    mapped_label.append(ord(w))
-            label_list.append(mapped_label)
+                if len(label) > threshold:
+                    is_valid = False
+                else:
+                    mapped_label = []
+                    for w in label:
+                        if ord(w) >= num_classes - 1: # out of basic asic
+                            is_valid = False
+                        else:
+                            mapped_label.append(ord(w))
+                    if is_valid:
+                        label_list.append(mapped_label)
+
+            if is_valid:
+                image = Image.open(os.path.join(datadir, name + '.bin.png'))
+                if resize:
+                    dims = (int(round(newsize * image.size[0] / image.size[1])), newsize)
+                    image = image.resize(dims)
+                image = np.asarray(image, dtype=np.uint32)
+                # change to black back ground
+                image = 255 - image
+                image_list.append(image)
 
     image_outfile = os.path.join(outdir, out_filename + '_image.p')
     print('Writing to: ', image_outfile)
@@ -81,8 +99,19 @@ def make_readfile(datadir, outputdir):
     return file_list
 
 def bundle_data(file_list, datadir, outdir):
+    resize_param = re.compile(r'resize:\s*\d', re.M)
+    r_match = resize_param.findall(param)
+    if r_match:
+        is_resize = int(r_match[0].split(':')[1])
+    pattern = re.compile(r'height:\s*\d+', re.M)
+    match = pattern.findall(param)
+    if match:
+        n_height = int(match[0].split(':')[1])
+    elif is_resize:
+        sys.exit('New height is not defined in param.txt!')
+
     for f in file_list:
-        read_file(f, datadir, outdir, resize=1, newsize=32)
+        read_file(f, datadir, outdir, resize=is_resize, newsize=n_height)
 
 def movefile(src_dir, dst_dir):
     assert os.path.exists(src_dir)
@@ -100,9 +129,10 @@ def movefile(src_dir, dst_dir):
 
 #movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
 
+
 if __name__ == '__main__':
-    datadir = '/home/jia/psl/tf_rnn/psl_data/gulliver_out'
-    outputdir = '/home/jia/psl/tf_rnn/psl_data/gulliver_trainfile'
-    outdir = '/home/jia/psl/tf_rnn/psl_data/gulliver_traindata'
+    datadir = '/home/jia/psl/tf_rnn/psl_data/gulliver/gulliver_test'
+    outputdir = '/home/jia/psl/tf_rnn/psl_data/gulliver/gulliver_testfile'
+    outdir = '/home/jia/psl/tf_rnn/psl_data/gulliver/testdata'
     file_list = make_readfile(datadir, outputdir)
     bundle_data(file_list, datadir, outdir)

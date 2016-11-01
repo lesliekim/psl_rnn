@@ -3,7 +3,7 @@ import os
 
 import tensorflow as tf
 import numpy as np
-from model import CnnRnnModel
+from model import BiRnnModel
 
 import utils
 
@@ -34,7 +34,7 @@ model_dir = './model/2016-09-11_13:36:05_8720/'
 
 # Loading the data
 
-train_loader = utils.Loader('../psl_data/244Images/traindata',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13','data_14'], batch_size)
+train_loader = utils.Loader('../psl_data/gulliver/traindata',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13'], batch_size)
 
 def LOG(Str):
     f = open(logFilename, "a")
@@ -52,7 +52,7 @@ LOG(keep_prob_3)
 # THE MAIN CODE!
 
 with tf.device('/cpu:0'):
-    model = CnnRnnModel(batch_size)
+    model = BiRnnModel(batch_size, keep_prob_1, keep_prob_2, keep_prob_3)
 
 
 config = tf.ConfigProto(allow_soft_placement=True)
