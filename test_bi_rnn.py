@@ -8,16 +8,22 @@ import utils
 from model import BiRnnModel
 
 arg = sys.argv[1]
-epoch = sys.argv[2]
+epoch = int(sys.argv[2])
 
 # Constants
-model_dir = arg + '/'
+model_dir = arg
 # epoch = 0
-model_file = "model.ckpt-" + str(epoch)
+model_file = "model.ckpt-%d" % (epoch)
 testID = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime()) + \
          "_" + str(os.getpid())
-logFilename = model_dir + "test_" + str(epoch) + "_" + testID + ".txt"
+logFilename = os.path.join(model_dir, "test_%d_%s.txt" % (epoch, testID))
 batch_size = 512
+# save ctc flag
+save_decode = True
+image_count = 1
+ctc_dir = os.path.join(model_dir, 'ctc')
+if not os.path.exists(ctc_dir):
+    os.mkdir(ctc_dir)
 
 # Loading the data
 test_loader = utils.Loader('../psl_data/gulliver/testdata',['data_0','data_1','data_2','data_3'], batch_size)
@@ -51,8 +57,8 @@ with tf.Session(config=config) as sess:
         else:
             LOG('no checkpoint found...')
     else:
-        LOG("Loading pb file from: " + model_dir +  model_file)
-        model.saver.restore(sess, model_dir + model_file)
+        LOG("Loading pb file from: %s" % (os.path.join(model_dir,model_file)))
+        model.saver.restore(sess, os.path.join(model_dir, model_file))
     test_err = 0
     test_ctc_err = 0
     start = time.time()
@@ -63,7 +69,18 @@ with tf.Session(config=config) as sess:
         feed = {model.inputs: batch_x_test,
                 model.targets: batch_y_test,
                 model.seq_len: batch_steps_test}
-        tmp_err, tmp_ctc_err = sess.run([model.err, model.cost], feed_dict=feed)
+        tmp_err, tmp_ctc_err, tmp_logits_prob = sess.run([model.err, model.cost, model.logits_prob], feed_dict=feed)
+        print np.shape(tmp_logits_prob)
+        print np.shape(tmp_logits_prob[0])
+        if save_decode:
+            for logits_prob in tmp_logits_prob:
+                prob_file = os.path.join(ctc_dir, 'ctc_prob_ep%d_%d.txt' % (epoch, image_count))
+                image_count += 1
+                with open(prob_file, 'w') as f:
+                    for item in logits_prob:
+                        f.write(str(item[-1]))
+                        f.write('\n')
+
         test_ctc_err += tmp_ctc_err * np.shape(batch_x_test)[0]
         test_err += tmp_err
         LOG("Batch: {:3d}/{:3d}, Batch Label Error: {}/{}, Batch CTC Error: {:.5f}, Batch Time = {:.3f}"

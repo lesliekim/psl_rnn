@@ -98,6 +98,8 @@ class CnnRnnModel(object):
         logits = tf.matmul(outputs, W) + b
         # Reshaping back to the original shape
         logits = tf.reshape(logits, [batch_s, -1, num_classes])
+        self.logits_prob = tf.nn.softmax(logits, dim=-1)
+
         # Time major
         logits = tf.transpose(logits, (1, 0, 2))
 
@@ -135,6 +137,7 @@ class BiRnnModel(object):
         # batch_size and max_stepsize can vary along each step
         self.inputs = tf.placeholder(tf.float32, [None, None, image_height, 1], name="inputs")
         inputs = tf.reshape(self.inputs, [tf.shape(self.inputs)[0], -1, image_height])
+        # TODO(rabbit): modity the normalization
         inputs = (inputs - 0.1) / 0.3
 
         # Here we use sparse_placeholder that will generate a
@@ -186,6 +189,7 @@ class BiRnnModel(object):
         with tf.variable_scope('layer1'):
             outputs_1, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_1, rnn_bw_1, inputs, self.seq_len,
                                                            dtype=tf.float32, parallel_iterations=batch_size)
+            # TODO(rabbit): remove it
             outputs_1 = tf.concat(2, outputs_1)
         with tf.variable_scope('layer2'):
             outputs_2, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_2, rnn_bw_2, outputs_1, self.seq_len,
@@ -212,6 +216,8 @@ class BiRnnModel(object):
         # Reshaping back to the original shape
         logits = tf.reshape(logits, [batch_s, -1, num_classes])
 
+        self.logits_prob = tf.nn.softmax(logits, dim=-1)
+
         # Time major
         logits = tf.transpose(logits, (1, 0, 2))
 
@@ -221,7 +227,7 @@ class BiRnnModel(object):
         self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
 
 
-        self.decoded, log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(self.seq_len, dtype='int32'))
+        self.decoded, self.log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(self.seq_len, dtype='int32'))
 
 
         # Accuracy: label error rate

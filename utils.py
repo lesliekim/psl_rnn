@@ -3,6 +3,7 @@ import pickle
 import random
 import numpy as np
 import re
+import cv2 as cv
 
 param_file = open('param.txt','r')
 param = param_file.read()
@@ -86,6 +87,7 @@ class Loader(object):
         for i in xrange(len(step_batch)):
             step_batch[i] = np.shape(x_batch_seq[i])[1]
         x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch), self.norm_height, 1])
+        print x_batch.shape
         for i in xrange(len(step_batch)):
             x_batch[i, :step_batch[i], :, 0] = np.transpose(x_batch_seq[i][np.newaxis, :, :], (0, 2, 1))
 
@@ -109,3 +111,63 @@ print('y_train: ', np.shape(y_train))
 print('step_batch: ', np.shape(step_batch))
 print('tar_len_batch: ', np.shape(tar_len_batch))
 '''
+def move_padding(prob, padding=0.189871):# default value 0.189871 comes from really network output on padding
+    N = len(prob)
+    end = N - 1
+    for i in xrange(N - 1, -1, -1):
+        if prob[i] == padding:
+            end = i
+    return prob[:end]
+
+def local_min(prob, threshold=0, bg=1.0, fg=0.0):
+    N = len(prob)
+    if N < 2:
+        raise ValueError('prob length should > 1!')
+
+    peak = [bg] * N
+    for i in xrange(N):
+        if i > 0 and i < N - 1:
+            if prob[i] < prob[i - 1] and prob[i] < prob[i + 1]:
+                peak[i] = prob[i]
+            elif i == 0:
+                if prob[i] < prob[i + 1]:
+                    peak[i] = prob[i]
+            else:
+                if prob[i] < prob[i - 1]:
+                    peak[i] = prob[i]
+
+    if threshold:
+        for i in xrange(N):
+            if peak[i] > threshold:
+                peak[i] = bg # noise point, set to background value
+            else:
+                peak[i] = fg # local min
+
+    return peak
+
+def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride size is equal to your pooling size
+    n_prob = move_padding(prob)
+    peak = local_min(n_prob, 0.02)
+    N = len(peak)
+    pos = [bg] * (2 * N)
+    if pooling_size > 1:
+        count = 0
+        for i in xrange(N):
+            for j in xrange(pooling_size):
+                pos[count] = peak[i]
+                count += 1
+    return pos
+
+def draw_pos_on_image(pos, img, img_name, fg=0.0):
+    height, width = img.shape[:2]
+    N = len(pos)
+    if abs(N - width) > 2:
+        raise ValueError('ctc prob length and image width are not match: prob length: %d, image width: %d' % (N, width))
+
+    for i in xrange(pos):
+        if pos[i] == fg and i < width:
+            cv.line(img, (i, 0), (i, height - 1), (255,0,0))
+    
+    cv.imwrite(img_name, img)
+        
+
