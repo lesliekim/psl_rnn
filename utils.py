@@ -111,6 +111,11 @@ print('y_train: ', np.shape(y_train))
 print('step_batch: ', np.shape(step_batch))
 print('tar_len_batch: ', np.shape(tar_len_batch))
 '''
+def read_probfile(filename):
+    with open(filename, 'r') as f:
+        prob = [float(x[:-1]) for x in f]
+    return prob
+
 def move_padding(prob, padding=0.189871):# default value 0.189871 comes from really network output on padding
     N = len(prob)
     end = N - 1
@@ -156,6 +161,9 @@ def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride s
             for j in xrange(pooling_size):
                 pos[count] = peak[i]
                 count += 1
+    else:
+        pos = peak[:]
+
     return pos
 
 def draw_pos_on_image(pos, img, img_name, fg=0.0):
