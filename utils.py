@@ -154,7 +154,7 @@ def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride s
     n_prob = move_padding(prob)
     peak = local_min(n_prob, 0.02)
     N = len(peak)
-    pos = [bg] * (2 * N)
+    pos = [bg] * (pooling_size * N)
     if pooling_size > 1:
         count = 0
         for i in xrange(N):
@@ -172,10 +172,12 @@ def draw_pos_on_image(pos, img, img_name, fg=0.0):
     if abs(N - width) > 2:
         raise ValueError('ctc prob length and image width are not match: prob length: %d, image width: %d' % (N, width))
 
-    for i in xrange(pos):
-        if pos[i] == fg and i < width:
-            cv.line(img, (i, 0), (i, height - 1), (255,0,0))
+    f_img = cv.cvtColor(np.cast['uint8'](img), cv.COLOR_GRAY2BGR)
     
-    cv.imwrite(img_name, img)
+    for i in xrange(N):
+        if pos[i] == fg and i < width:
+            cv.line(f_img, (i, 0), (i, height - 1), (0,0,255))
+    
+    cv.imwrite(img_name, f_img)
         
 
