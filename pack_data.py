@@ -4,10 +4,8 @@ import pickle
 import shutil
 import numpy as np
 import re
+import param
 
-param_file = open('param.txt','r')
-param = param_file.read()
-param_file.close()
 
 def read_file(filename, datadir, outdir, resize = False, newsize = 1):
     image_list = []
@@ -99,16 +97,8 @@ def make_readfile(datadir, outputdir):
     return file_list
 
 def bundle_data(file_list, datadir, outdir):
-    resize_param = re.compile(r'resize:\s*\d', re.M)
-    r_match = resize_param.findall(param)
-    if r_match:
-        is_resize = int(r_match[0].split(':')[1])
-    pattern = re.compile(r'height:\s*\d+', re.M)
-    match = pattern.findall(param)
-    if match:
-        n_height = int(match[0].split(':')[1])
-    elif is_resize:
-        sys.exit('New height is not defined in param.txt!')
+    n_height = param.height
+    is_resize = param.resize
 
     for f in file_list:
         read_file(f, datadir, outdir, resize=is_resize, newsize=n_height)
@@ -131,8 +121,8 @@ def movefile(src_dir, dst_dir):
 
 
 if __name__ == '__main__':
-    datadir = '/home/jia/psl/tf_rnn/psl_data/gulliver/gulliver_test'
-    outputdir = '/home/jia/psl/tf_rnn/psl_data/gulliver/gulliver_testfile'
-    outdir = '/home/jia/psl/tf_rnn/psl_data/gulliver/testdata'
+    datadir = '/home/jia/psl/tf_rnn/psl_data/244Images/test_sepf244'
+    outputdir = '/home/jia/psl/tf_rnn/psl_data/244Images/testfile'
+    outdir = '/home/jia/psl/tf_rnn/psl_data/244Images/testdata_64'
     file_list = make_readfile(datadir, outputdir)
     bundle_data(file_list, datadir, outdir)

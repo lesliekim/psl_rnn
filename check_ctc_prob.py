@@ -6,14 +6,14 @@ import utils
 epoch = int(sys.argv[1])
 
 pooling_size = 1# if RNN, set this parameter to 1
-data_dir = '/home/jia/psl/tf_rnn/psl_data/gulliver/testdata'
-ctc_dir = '/home/jia/psl/tf_rnn/psl_rnn/model/gulliverRNNonly/ctc'
+data_dir = '/home/jia/psl/tf_rnn/psl_data/244Images/testdata'
+ctc_dir = '/home/jia/psl/tf_rnn/psl_rnn/model/244ImagesRNNonly/ctc'
 
 assert os.path.isdir(data_dir)
 assert os.path.isdir(ctc_dir)
 
 # make sure your image data order matchs your ctc file order
-test_data = ['data_0','data_1','data_2','data_3']
+test_data = ['data_0','data_1','data_2']
 test_loader = utils.Loader(data_dir, test_data, 512)
 
 image_count = 1 # make sure its initial number is the same with test_bi_rnn.py!!!

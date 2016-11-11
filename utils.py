@@ -4,17 +4,9 @@ import random
 import numpy as np
 import re
 import cv2 as cv
+import param
 
-param_file = open('param.txt','r')
-param = param_file.read()
-pattern = re.compile(r'height:\s*\d+', re.M)
-match = pattern.findall(param)
-if match:
-    norm_height = int(match[0].split(':')[1])
-else:
-    sys.exit('image height is not defined in param.txt!')
-
-param_file.close()
+norm_height = param.height
 
 def load_set(datadir, dataname):
     filename = os.path.join(datadir, dataname + '_image.p')
@@ -116,7 +108,7 @@ def read_probfile(filename):
         prob = [float(x[:-1]) for x in f]
     return prob
 
-def move_padding(prob, padding=0.189871):# default value 0.189871 comes from really network output on padding
+def move_padding(prob, padding=0.120172):# default value 0.189871 comes from really network output on padding
     N = len(prob)
     end = N - 1
     for i in xrange(N - 1, -1, -1):

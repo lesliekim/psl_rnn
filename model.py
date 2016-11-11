@@ -2,17 +2,9 @@ import tensorflow as tf
 from tensorflow.python.ops import ctc_ops as ctc  # ctc no more in contrib
 from tensorflow.contrib import grid_rnn
 import re
+import param
 
-param_file = open('param.txt','r')
-param = param_file.read()
-pattern = re.compile(r'height:\s*\d+',re.M)
-match = pattern.findall(param)
-if match:
-    height = int(match[0].split(':')[1])
-else:
-    sys.exit('image heigth is not defined in param.txt!')
-
-param_file.close()
+height = param.height
 
 class CnnRnnModel(object):
     def __init__(self, batch_size=1):
