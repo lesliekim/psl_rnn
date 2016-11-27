@@ -3,7 +3,7 @@ import os
 
 import tensorflow as tf
 import numpy as np
-from model import BiRnnModel
+from model import CnnRnnModel
 
 import utils
 
@@ -34,7 +34,7 @@ model_dir = './model/2016-09-11_13:36:05_8720/'
 
 # Loading the data
 
-train_loader = utils.Loader('../psl_data/gulliver/traindata',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13'], batch_size)
+train_loader = utils.Loader('../psl_data/father/traindata_64',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13'], batch_size)
 
 def LOG(Str):
     f = open(logFilename, "a")
@@ -52,7 +52,7 @@ LOG(keep_prob_3)
 # THE MAIN CODE!
 
 with tf.device('/cpu:0'):
-    model = BiRnnModel(batch_size, keep_prob_1, keep_prob_2, keep_prob_3)
+    model = CnnRnnModel(batch_size)
 
 
 config = tf.ConfigProto(allow_soft_placement=True)
@@ -89,15 +89,19 @@ with tf.Session(config=config) as session:
                     model.targets: batch_y_train,
                     model.seq_len: batch_steps_train}
 
-            batch_err, batch_cost, _ =\
-                session.run([model.err, model.cost, model.optimizer], feed)
+            # model.err op has been removed to speed up training !
+            batch_cost, _ =\
+                session.run([model.cost, model.optimizer], feed)
 
             train_cost += batch_cost*np.shape(batch_x_train)[0]
-            train_err += batch_err
+            #train_err += batch_err
 
             if batch % disp_steps == 0:
-                LOG('Batch {}/{}, batch_cost = {:.3f}, batch_err = {}/{}, Time: {:.3f}'
-                    .format(batch, train_loader.batch_number, batch_cost, int(batch_err), batch_tar_len, time.time() - batch_timer))
+                #LOG('Batch {}/{}, batch_cost = {:.3f}, batch_err = {}/{}, Time: {:.3f}'
+                #    .format(batch, train_loader.batch_number, batch_cost, int(batch_err), batch_tar_len, time.time() - batch_timer))
+                LOG('Batch {}/{}, batch_cost = {:.3f}, Time: {:.3f}'
+                    .format(batch, train_loader.batch_number, batch_cost, time.time() - batch_timer))
+                '''
                 # Decoding
                 decoded_Array = session.run(model.decoded[0], feed_dict=feed)
                 decode_len = 3
@@ -109,12 +113,13 @@ with tf.Session(config=config) as session:
                 for i in range(0, min(batch_size, decode_len)):
                     decoded_str = utils.get_row(decoded_Array, i)
                     LOG(decoded_str)
+                '''
 
         train_cost /= train_loader.train_length
-        train_err /= train_loader.target_len
+        #train_err /= train_loader.target_len
 
-        log = trainID + "  Epoch {}/{}, train_cost = {:.3f}, train_err = {:.3f},  time = {:.3f}"
-        LOG(log.format(curr_epoch+1, num_epochs, train_cost, train_err,  time.time() - start))
+        log = trainID + "  Epoch {}/{}, train_cost = {:.3f}, time = {:.3f}"
+        LOG(log.format(curr_epoch+1, num_epochs, train_cost, time.time() - start))
 
         if (curr_epoch + 1) % checkpoint_steps == 0:
             model.saver.save(session, checkpoint_dir + '/model.ckpt', global_step=curr_epoch+1)

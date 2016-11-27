@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import numpy as np
 import utils
-from model import BiRnnModel
+from model import CnnRnnModel
 
 arg = sys.argv[1]
 epoch = int(sys.argv[2])
@@ -17,16 +17,16 @@ model_file = "model.ckpt-%d" % (epoch)
 testID = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime()) + \
          "_" + str(os.getpid())
 logFilename = os.path.join(model_dir, "test_%d_%s.txt" % (epoch, testID))
-batch_size = 512
+batch_size = 32
 # save ctc flag
-save_decode = True
+save_decode = False
 image_count = 1
 ctc_dir = os.path.join(model_dir, 'ctc')
 if not os.path.exists(ctc_dir):
     os.mkdir(ctc_dir)
 
 # Loading the data
-test_loader = utils.Loader('../psl_data/gulliver/testdata',['data_0','data_1','data_2','data_3'], batch_size)
+test_loader = utils.Loader('../psl_data/father/testdata_64',['data_0','data_1','data_2'], batch_size)
 
 def LOG(Str):
     f1 = open(logFilename, "a")
@@ -39,7 +39,7 @@ LOG("Test ID: " + str(testID))
 # THE MAIN CODE!
 with tf.device('/gpu:1'):
 
-    model = BiRnnModel(batch_size)
+    model = CnnRnnModel(batch_size)
 
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True
@@ -70,8 +70,6 @@ with tf.Session(config=config) as sess:
                 model.targets: batch_y_test,
                 model.seq_len: batch_steps_test}
         tmp_err, tmp_ctc_err, tmp_logits_prob = sess.run([model.err, model.cost, model.logits_prob], feed_dict=feed)
-        print np.shape(tmp_logits_prob)
-        print np.shape(tmp_logits_prob[0])
         if save_decode:
             for logits_prob in tmp_logits_prob:
                 prob_file = os.path.join(ctc_dir, 'ctc_prob_ep%d_%d.txt' % (epoch, image_count))

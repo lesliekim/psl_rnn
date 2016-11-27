@@ -7,7 +7,7 @@ import re
 import param
 
 
-def read_file(filename, datadir, outdir, resize = False, newsize = 1):
+def read_file(filename, datadir, outdir, resize=False, newsize=1):
     image_list = []
     label_list = []
     out_filename = filename.split('/')[-1]
@@ -40,6 +40,7 @@ def read_file(filename, datadir, outdir, resize = False, newsize = 1):
 
             if is_valid:
                 image = Image.open(os.path.join(datadir, name + '.bin.png'))
+                image = image.convert('L')
                 if resize:
                     dims = (int(round(newsize * image.size[0] / image.size[1])), newsize)
                     image = image.resize(dims)
@@ -70,30 +71,40 @@ def get_all_filename(pathname):
 
     return filename_list
 
+readfile_count = 0
 def make_readfile(datadir, outputdir):
+    '''
+    datadir: data direction
+    outputdir:separating files direction.separate data into small set for pickle,
+    '''
+    global readfile_count
     folders = os.listdir(datadir)
     base_filename = 'data_'
     filesize = 500
-    count = 0
     file_list = []
     name_list = []
     for folder in folders:
         name_list += get_all_filename(os.path.join(datadir, folder))
     cnt = 0
-    f = open(os.path.join(outputdir, base_filename + str(count) + '.txt'), 'w')
-    file_list.append(os.path.join(outputdir, base_filename + str(count) + '.txt'))
+    f = open(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'), 'w')
+    file_list.append(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'))
     for item in name_list:
         f.write(item)
         f.write('\n')
         cnt += 1
         if cnt % filesize == 0:
             f.close()
-            count += 1
-            f = open(os.path.join(outputdir, base_filename + str(count) + '.txt'), 'w')
-            file_list.append(os.path.join(outputdir, base_filename + str(count) + '.txt'))
+            readfile_count += 1
+            f = open(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'), 'w')
+            file_list.append(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'))
             cnt = 0
     if not f.closed:
         f.close()
+    return file_list
+
+def get_readfile(readfile_dir):
+    files = os.listdir(readfile_dir)
+    file_list = [os.path.join(readfile_dir, f) for f in files]
     return file_list
 
 def bundle_data(file_list, datadir, outdir):
@@ -119,10 +130,23 @@ def movefile(src_dir, dst_dir):
 
 #movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
 
-
 if __name__ == '__main__':
-    datadir = '/home/jia/psl/tf_rnn/psl_data/244Images/test_sepf244'
-    outputdir = '/home/jia/psl/tf_rnn/psl_data/244Images/testfile'
-    outdir = '/home/jia/psl/tf_rnn/psl_data/244Images/testdata_64'
-    file_list = make_readfile(datadir, outputdir)
-    bundle_data(file_list, datadir, outdir)
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/father_test']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/father_testfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/testdata_64'
+    has_readfile = False
+    
+    if not os.path.exists(data_outdir):
+        os.mkdir(data_outdir)
+
+    if has_readfile:
+        file_list = get_readfile(readfile_outdir)
+    else:
+        if type(datadir) == list:
+            file_list = []
+            for d in datadir:
+                file_list.extend(make_readfile(d, readfile_outdir))
+        else:
+            file_list = make_readfile(datadir, readfile_outdir)
+
+    bundle_data(file_list, datadir, data_outdir)

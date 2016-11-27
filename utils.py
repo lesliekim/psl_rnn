@@ -3,7 +3,6 @@ import pickle
 import random
 import numpy as np
 import re
-import cv2 as cv
 import param
 
 norm_height = param.height
@@ -79,12 +78,10 @@ class Loader(object):
         for i in xrange(len(step_batch)):
             step_batch[i] = np.shape(x_batch_seq[i])[1]
         x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch), self.norm_height, 1])
-        print x_batch.shape
         for i in xrange(len(step_batch)):
             x_batch[i, :step_batch[i], :, 0] = np.transpose(x_batch_seq[i][np.newaxis, :, :], (0, 2, 1))
 
         # Creating sparse representation to feed the placeholder
-        #print(y_batch_seq)
         y_batch = sparse_tuple_from(y_batch_seq)
         tar_len_batch = 0
         for y in y_batch_seq:
@@ -159,6 +156,7 @@ def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride s
     return pos
 
 def draw_pos_on_image(pos, img, img_name, fg=0.0):
+    import cv2 as cv
     height, width = img.shape[:2]
     N = len(pos)
     if abs(N - width) > 2:
@@ -172,4 +170,17 @@ def draw_pos_on_image(pos, img, img_name, fg=0.0):
     
     cv.imwrite(img_name, f_img)
         
+def peak_search(array, bg=0, fg=1):
+    threshold = 0.5
+    return [fg if x > threshold else bg  for x in array]
 
+def reduce_length(array, times):
+    ans = []
+    N = len(array)
+    begin = 0
+    end = min(4, N)
+    while begin < N:
+        ans.append(max(array[begin:end]))
+        begin = end
+        end = min(end + 4, N)
+    return ans
