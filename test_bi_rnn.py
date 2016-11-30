@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import numpy as np
 import utils
-from model import CnnRnnModel
+from model import BiRnnModel
 
 arg = sys.argv[1]
 epoch = int(sys.argv[2])
@@ -19,7 +19,7 @@ testID = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime()) + \
 logFilename = os.path.join(model_dir, "test_%d_%s.txt" % (epoch, testID))
 batch_size = 32
 # save ctc flag
-save_decode = False
+save_decode = True
 image_count = 1
 ctc_dir = os.path.join(model_dir, 'ctc')
 if not os.path.exists(ctc_dir):
@@ -39,7 +39,7 @@ LOG("Test ID: " + str(testID))
 # THE MAIN CODE!
 with tf.device('/gpu:1'):
 
-    model = CnnRnnModel(batch_size)
+    model = BiRnnModel(batch_size)
 
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True

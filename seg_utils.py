@@ -106,14 +106,7 @@ class Loader(object):
         compact = zip(self.image, self.label)
         random.shuffle(compact)
         self.image, self.label = map(list, zip(*compact))
-'''
-train_loader = Loader('../psl_data/244Images/traindata', ['inputfile_0'], 16, 32)
-x_train, y_train, step_batch, tar_len_batch = train_loader.next_batch()
-print('x_train: ', np.shape(x_train))
-print('y_train: ', np.shape(y_train))
-print('step_batch: ', np.shape(step_batch))
-print('tar_len_batch: ', np.shape(tar_len_batch))
-'''
+
 def read_probfile(filename):
     with open(filename, 'r') as f:
         prob = [float(x[:-1]) for x in f]
@@ -205,6 +198,17 @@ def is_valid_segment(positions, center, threshold=10):
     return True
 
 def crop_image(image_seq, label_seq, crop_width, padding=0):
+    '''
+    crop image for network inputs
+    image_seq: image sequence, list, each item is an image mat
+    label_seq: label sequence, list, each item is an 1-D array which has 
+                the same length with image's width (not one-hot format)
+    crop_width: crop image width. Note that crop image's height is the same
+                as its width
+    padding: parameter for opencv, image padding
+    return value: tuple, (crop_image, crop_label), crop_label is an array whose
+                    item is boolean value
+    '''
     crop_image_seq = []
     crop_label_seq = []
     affine_dst = np.array([[0,0],[crop_width - 1,0],[crop_width - 1,crop_width - 1]], dtype=np.float32)
@@ -233,3 +237,110 @@ def crop_image(image_seq, label_seq, crop_width, padding=0):
                 
     return np.reshape(crop_image_seq, [-1, 32, 32, 1]), crop_label_seq
 
+def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
+    '''
+    dealing with single output sequence
+
+    output_seq: 1-D array
+    return value: 1-D array, segmentation position
+            zero-index, not including left and right side
+    '''
+    N = len(output_seq)
+
+    if N < 2:
+        return []
+
+    seg_pos = []
+    # removing right side noise
+    right = N - 1
+    count = right
+
+    while count >= 0 and output_seq[count] == fg:
+        count -= 1
+    right = count
+
+    # removing left side noise
+    count = 0
+
+    while count <= right and output_seq[count] == fg:
+        count += 1
+
+    # merging segmentation points
+    begin = -1
+    end = -1
+    while count <= right:
+        if begin < 0:
+            if output_seq[count] == bg:
+                count += 1
+            else:
+                begin = count
+                count += 1
+        else:
+            if output_seq[count] == bg:
+                end = count - 1
+                seg_pos.append(pooling_size * int((begin + end) / 2))
+                begin = -1
+                end = -1
+                count += 1
+            else:
+                count += 1
+
+    return seg_pos
+
+def crop_result_image(image, seg_pos, padding=255):
+    '''
+    crop image refering to seg_pos, alse see seg_image() 
+    function in utils.py
+
+    image: input image
+    seg_pos: segmentation position, list, zero-index
+    padding: parameter for opencv
+    return value: list, a list of cropped images
+    '''
+    height, width = image.shape[:2]
+    image = image * 255.
+
+    # append right side
+    seg_pos.append(width - 1)
+
+    top = 0
+    left = 0
+    bottom = height - 1
+    crop_image_list = []
+
+    for i, pos in enumerate(seg_pos):
+        right = pos
+        left = 0 if i == 0 else seg_pos[i - 1]
+        w = int(right - left)
+
+        affine_dst = np.array([[0,0], [w,0], [w, bottom]], dtype=np.float32)
+        affine_src = np.array([[left,top], [right,top], [right,bottom]], dtype=np.float32)
+        affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+        crop_image = cv.warpAffine(image, affine_mat, dsize=(w+1, height))
+        crop_image_list.append(crop_image)
+
+    return crop_image_list
+
+def crop_and_save(image_list, argmax_outputs, output_dir, batch_number, pooling_size):
+    '''
+    crop images and save cropped images
+
+    image_list: list, each item is a image mat
+    argmax_outputs: list, each item is an array whose width is 
+                the same as image's width
+    output_dir: cropped images output direction
+    batch_number: int
+
+    return value: None
+    '''
+    for i, image in enumerate(image_list):
+        seg_pos = process_cnn_segment(argmax_outputs[i], pooling_size=pooling_size)
+        crop_image_list = crop_result_image(image, seg_pos)
+        # save image
+        for j, crop_image in enumerate(crop_image_list):
+            name = "{}_{}_{}.bin.png".format(batch_number, i, j)
+            cv.imwrite(os.path.join(output_dir, name), crop_image)
+
+
+
+    
