@@ -1,5 +1,4 @@
 import seg_utils as utils
-from tensorflow.examples.tutorials.mnist import input_data
 import tensorflow as tf
 from model import SegNet_crop as Net
 import numpy as np
@@ -20,7 +19,7 @@ os.mkdir(save_dir)
 
 # Loading the data
 train_loader = utils.Loader('../psl_data/seg_cnn/traindata',['data_0', 'data_1', 'data_2', 'data_3'],batch_size)
-test_loader = utils.Loader('../psl_data/seg_cnn/traindata',['data_1'],batch_size)
+test_loader = utils.Loader('../psl_data/seg_cnn/testdata_times',['data_0','data_1','data_2','data_3'],batch_size)
 
 # train
 with tf.Graph().as_default():

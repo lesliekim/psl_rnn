@@ -2,7 +2,7 @@ import os
 import pickle
 import random
 import numpy as np
-import re
+import cv2 as cv
 import param
 
 norm_height = param.height
@@ -105,12 +105,14 @@ def read_probfile(filename):
         prob = [float(x[:-1]) for x in f]
     return prob
 
-def move_padding(prob, padding=0.120172):# default value 0.189871 comes from really network output on padding
+def move_padding(prob, padding):# default value 0.189871 comes from really network output on padding
     N = len(prob)
     end = N - 1
     for i in xrange(N - 1, -1, -1):
         if prob[i] == padding:
             end = i
+        else:
+            break
     return prob[:end]
 
 def local_min(prob, threshold=0, bg=1.0, fg=0.0):
@@ -139,8 +141,13 @@ def local_min(prob, threshold=0, bg=1.0, fg=0.0):
 
     return peak
 
-def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride size is equal to your pooling size
-    n_prob = move_padding(prob)
+def prob_to_pos(prob, padding=0, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride size is equal to your pooling size
+    '''
+    output:
+        pos: array, as long as original image width, each item has 
+            either bg value or fg value
+    '''
+    n_prob = move_padding(prob, padding)
     peak = local_min(n_prob, 0.02)
     N = len(peak)
     pos = [bg] * (pooling_size * N)
@@ -156,10 +163,9 @@ def prob_to_pos(prob, pooling_size=1, bg=1.0, fg=0.0): # we assume your stride s
     return pos
 
 def draw_pos_on_image(pos, img, img_name, fg=0.0):
-    import cv2 as cv
     height, width = img.shape[:2]
     N = len(pos)
-    if abs(N - width) > 2:
+    if abs(N - width) > 5: # todo: it should be 2 * pooling_size
         raise ValueError('ctc prob length and image width are not match: prob length: %d, image width: %d' % (N, width))
 
     f_img = cv.cvtColor(np.cast['uint8'](img), cv.COLOR_GRAY2BGR)
@@ -169,7 +175,32 @@ def draw_pos_on_image(pos, img, img_name, fg=0.0):
             cv.line(f_img, (i, 0), (i, height - 1), (0,0,255))
     
     cv.imwrite(img_name, f_img)
-        
+
+def seg_image(positions, img, image_base_name, output_dir, fg=0):
+    height, width = img.shape[:2]
+    img = img/1.
+    pos_index = [index for index,item in enumerate(positions) if item == fg]
+    if len(positions) - pos_index[-1] > 8:
+        pos_index.append(len(positions) - 1)
+    top = 0 # y
+    left = 0 # x
+    bottom = height - 1
+
+    for i, pos in enumerate(pos_index):
+        right = pos
+        left = 0 if i == 0 else pos_index[i-1]
+        w = int(right - left)
+
+        if w < 8:
+            continue
+        affine_dst = np.array([[0,0],[w,0],[w,bottom]], dtype=np.float32)
+        affine_src = np.array([[left,top],[right,top],[right,bottom]], dtype=np.float32)
+        affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+        crop_image = cv.warpAffine(img, affine_mat, dsize=(w+1, height))
+        # save image
+        crop_image_name = "{}_{}.bin.png".format(image_base_name, i+1)
+        cv.imwrite(os.path.join(output_dir, crop_image_name), crop_image)
+
 def peak_search(array, bg=0, fg=1):
     threshold = 0.5
     return [fg if x > threshold else bg  for x in array]
