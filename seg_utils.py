@@ -8,6 +8,9 @@ import cv2 as cv
 
 norm_height = param.height
 
+'''
+Data Loader
+'''
 def load_set(datadir, dataname):
     filename = os.path.join(datadir, dataname + '_image.p')
     print('Loading data from: ' + filename)
@@ -107,6 +110,9 @@ class Loader(object):
         random.shuffle(compact)
         self.image, self.label = map(list, zip(*compact))
 
+'''
+Process CTC output
+'''
 def read_probfile(filename):
     with open(filename, 'r') as f:
         prob = [float(x[:-1]) for x in f]
@@ -118,7 +124,9 @@ def move_padding(prob, padding=0.120172):# default value 0.189871 comes from rea
     for i in xrange(N - 1, -1, -1):
         if prob[i] == padding:
             end = i
-    return prob[:end]
+            break
+
+    return prob[:end][:]
 
 def local_min(prob, threshold=0, bg=1.0, fg=0.0):
     N = len(prob)
@@ -190,6 +198,10 @@ def reduce_length(array, times):
         begin = end
         end = min(end + 4, N)
     return ans
+
+'''
+Crop image for SegNet_Crop 
+'''
 def is_valid_segment(positions, center, threshold=10):
     for pos in positions:
         if abs(pos - center) < threshold:
@@ -206,14 +218,15 @@ def crop_image(image_seq, label_seq, crop_width, padding=0):
     crop_width: crop image width. Note that crop image's height is the same
                 as its width
     padding: parameter for opencv, image padding
-    return value: tuple, (crop_image, crop_label), crop_label is an array whose
-                    item is boolean value
+    return value: tuple, (crop_image, crop_label), crop_label is an one-hot array
     '''
     crop_image_seq = []
     crop_label_seq = []
     affine_dst = np.array([[0,0],[crop_width - 1,0],[crop_width - 1,crop_width - 1]], dtype=np.float32)
     for i,image in enumerate(image_seq):
-        seg_positions = set([k for k,item in enumerate(label_seq[i]) if item == 1])
+        label_none_padding = move_padding(label_seq[i], padding=0)
+        
+        seg_positions = set([k for k,item in enumerate(label_none_padding) if item == 1])
 
         # crop positive samples
         for pos in seg_positions:
@@ -225,7 +238,35 @@ def crop_image(image_seq, label_seq, crop_width, padding=0):
         
         # crop negative samples
         count = 0
-        while count < len(seg_positions) + 1:
+        # negative samples : positive samples
+        radio = 1.0
+        number_negative_samples = len(seg_positions) * radio + 1
+        
+        # Histogram based crop for negative samples
+        # image : [height, width, channel], black background, white character
+        hist = np.transpose(np.array(image).sum(axis=0).flatten()) # accumulate along heigth
+        hist = move_padding(hist, padding=0.0)
+        hist_min = local_min(hist, bg = -1) # local min of hist is greater than -1 while others equal to -1
+        hist_min_pair = [(k, item) for k, item in enumerate(hist_min)] # (index, hist_min[index])
+        hist_min_pair = sorted(hist_min_pair, cmp=lambda x,y:cmp(x[1],y[1])) # sort this array
+        h_count = 0
+        while count < number_negative_samples and h_count < len(hist_min):
+            if hist_min_pair[h_count][1] == -1:
+                h_count += 1
+                continue
+
+            center = hist_min_pair[h_count][0]
+            h_count += 1
+            if is_valid_segment(seg_positions, center, threshold=8):
+                count += 1
+                affine_src = np.array([[center + 1 - crop_width/2, 0],[center + crop_width/2, 0],[center + crop_width/2, crop_width - 1]],dtype=np.float32)
+                affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+                crop_image = cv.warpAffine(image, affine_mat, dsize=(crop_width, crop_width))
+                crop_image_seq.append(crop_image)
+                crop_label_seq.append([1, 0])
+
+        # Random crop for negative samples
+        while count < number_negative_samples:
             center = random.randint(0, len(label_seq[i]) - 1)
             if is_valid_segment(seg_positions, center, threshold=10):
                 count += 1
@@ -237,6 +278,24 @@ def crop_image(image_seq, label_seq, crop_width, padding=0):
                 
     return np.reshape(crop_image_seq, [-1, 32, 32, 1]), crop_label_seq
 
+# test crop image
+'''
+loader = Loader('../psl_data/seg_cnn/traindata_total', ['data_3'], batch_size=100000)
+x,y,_,_ = loader.next_batch()
+crop_image_list, crop_label_list = crop_image(x * 255.,y,32)
+temp_save_dir = '../psl_data/seg_cnn/temp'
+if not os.path.exists(temp_save_dir):
+    os.mkdir(temp_save_dir)
+
+for i,img in enumerate(crop_image_list):
+    name = "{}_{}.bin.png".format(i, 0 if crop_label_list[i][0] == 1 else 1)
+    cv.imwrite(os.path.join(temp_save_dir, name), img)
+'''
+# finish test crop image 
+
+'''
+Process SegNet_crop output and save results
+'''
 def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
     '''
     dealing with single output sequence

@@ -1,0 +1,4 @@
+*.pyc
+model/
+cnn_model/
+MNIST_data/
