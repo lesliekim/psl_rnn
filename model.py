@@ -384,16 +384,67 @@ class SegNet(object):
             targets = tf.cast(pool, dtype=tf.int64)
     '''
 
-def RecNet(object):
-    def __init__(self, is_test=False):
-        self.inputs = tf.placeholder(tf.float32, shape=[], name="inputs")
+class RecNet(object):
+    def __init__(self, batch_size, is_test=False):
+        img_height = seg_height
+
+        self.inputs = tf.placeholder(tf.float32, shape=[None, img_height, None, 1], name="inputs")
         inputs = self.inputs
-        self.targets = tf.placeholder(tf.float32, shape=[], name="targets")
+        self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
         targets = self.targets
+
+        conv_layer = [[5, 1, 32, 2, 2],[5, 1, 64, 2, 2]]
+
+        deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
+
+        with tf.variable_scope("full"):
+            w_f_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal([8, 8, 64,128], stddev=0.01))
+            w_f_test = tf.reshape(w_f_test, [8, 8, 64, 128])
+            b_f_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([128], stddev=0.01))
+
+            h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
+                    strides=[1, 8, 1, 1], padding="SAME")
+            h_conv = tf.nn.relu(tf.nn.bias_add(h_f_test, b_f_test))
+
+        with tf.variable_scope("readout"):
+            w_r_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal([1, 1, 128,2], stddev=0.01))
+            w_r_test = tf.reshape(w_r_test, [1, 1, 128, 2])
+            b_r_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([2], stddev=0.01))
+
+            h_r_test = tf.nn.conv2d(h_conv, w_r_test, 
+                    strides=[1, 1, 1, 1], padding='SAME')
+            y_conv = tf.nn.relu(tf.nn.bias_add(h_r_test, b_r_test))
+            y_conv = tf.reshape(y_conv, [batch_size, -1, 2])
+
+
+        with tf.variable_scope("label_pool"):
+            target_pool = tf.cast(tf.reshape(targets, [batch_size, -1, 1, 1]), tf.float32)
+            pool_height = 4
+            pool_width = 1
+            pool = tf.nn.max_pool(target_pool, ksize=[1, pool_height, pool_width, 1],
+                    strides=[1, pool_height, pool_width, 1], padding="SAME")
+            pool = tf.cast(pool, dtype=tf.int32)
+            targets = tf.one_hot(tf.reshape(pool, [batch_size, -1]), depth=2, 
+                    on_value=1, off_value=0, axis=-1, dtype=tf.int32)
+            #targets = tf.cast(pool, dtype=tf.int64)
+
+        # loss
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
+
+        if not is_test:
+            # optimizer
+            self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
         
-        conv_layer = []
-        with tf.variable_scope("fc"):
-            pass
+        y_softmax = tf.nn.softmax(y_conv, dim=-1)
+        self.argmax_outputs = tf.argmax(y_softmax, 2)
+        self.argmax_targets = tf.argmax(targets, 2)
+        correct_prediction = tf.equal(self.argmax_outputs, self.argmax_targets)
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
 
 class SegRnnNet(object):
     def __init__(self, batch_size, is_test=False):
@@ -448,8 +499,19 @@ class SegRnnNet(object):
 
 
 class SegNet_crop(object):
+    '''
+    Segmentation crop network
+    Fully connected layer in training has been replaced with convolutional layer while testing.
+    See "Fully convolutional networks for semantic segmentation" (Jonathan Long, etc, CVPR 2015) 
+    for more information.
+    Train input: cropped image list which has the same width and height (refer to seg_height)
+    Train label: boolean list whose item indicates whether the center of the cropped image is
+                the right segmentation position
+    Test input: image list (width != height)
+    Test label: list of list, each item is an array representing segmentation position
+    '''
     def __init__(self, batch_size, is_test=False):
-        self.inputs = tf.placeholder(tf.float32, shape=[None, 32, None, 1], name="inputs")
+        self.inputs = tf.placeholder(tf.float32, shape=[None, seg_height, None, 1], name="inputs")
         inputs = self.inputs
         if not is_test:
             self.targets = tf.placeholder(tf.int64, shape=[None, 2], name="targets")
@@ -458,18 +520,26 @@ class SegNet_crop(object):
 
         targets = self.targets
 
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, 64, 2, 2]]
+        #conv_layer = [[5, 1, 32, 2, 2],[5, 1, 64, 2, 2]]
+        conv_layer = [[5, 1, 32, 2, 2]]
+        #pooled_height = seg_height / (2 * 2) # two pooling layers whose pooling size is 2
+        pooled_height = seg_height / 2 # two pooling layers whose pooling size is 2
+        #last_out_channel = 64
+        last_out_channel = 32
 
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
 
         if not is_test:
+            # during training, image height = image width
             with tf.variable_scope("full"):
+                # weight has size [8*8*64, 128]
                 w_f = tf.get_variable('weights',
-                        initializer=tf.truncated_normal([8*8*64, 128], stddev=0.01))
+                        initializer=tf.truncated_normal([pooled_height * pooled_height * last_out_channel, 128],
+                        stddev=0.01))
                 b_f = tf.get_variable('biases',
                         initializer=tf.truncated_normal([128], stddev=0.01))
 
-                deep_conv_flat = tf.reshape(deep_conv, [-1, 8*8*64])
+                deep_conv_flat = tf.reshape(deep_conv, [-1, pooled_height * pooled_height * last_out_channel])
                 h_f = tf.nn.relu(tf.matmul(deep_conv_flat, w_f) + b_f)
 
             with tf.variable_scope("readout"):
@@ -480,15 +550,17 @@ class SegNet_crop(object):
 
                 y_conv = tf.matmul(h_f, w_r) + b_r
         else:
+            # while testing, image is not square, image height is not equal to image width
             with tf.variable_scope("full"):
                 w_f_test = tf.get_variable('weights',
-                    initializer=tf.truncated_normal([8*8*64,128], stddev=0.01))
-                w_f_test = tf.reshape(w_f_test, [8, 8, 64, 128])
+                    initializer=tf.truncated_normal([pooled_height * pooled_height * last_out_channel, 128],
+                    stddev=0.01))
+                w_f_test = tf.reshape(w_f_test, [pooled_height, pooled_height, last_out_channel, 128])
                 b_f_test = tf.get_variable('biases',
                         initializer=tf.truncated_normal([128], stddev=0.01))
 
                 h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
-                        strides=[1, 8, 1, 1], padding="SAME")
+                        strides=[1, pooled_height, 1, 1], padding="SAME")
                 h_conv = tf.nn.relu(tf.nn.bias_add(h_f_test, b_f_test))
 
             with tf.variable_scope("readout"):
@@ -505,7 +577,7 @@ class SegNet_crop(object):
 
             with tf.variable_scope("label_pool"):
                 target_pool = tf.cast(tf.reshape(targets, [batch_size, -1, 1, 1]), tf.float32)
-                pool_height = 4
+                pool_height =  2 #4
                 pool_width = 1
                 pool = tf.nn.max_pool(target_pool, ksize=[1, pool_height, pool_width, 1],
                         strides=[1, pool_height, pool_width, 1], padding="SAME")
@@ -534,9 +606,5 @@ class SegNet_crop(object):
 
         correct_prediction = tf.equal(self.argmax_outputs, self.argmax_targets)
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-def RecNet(object):
-    def __init__(self, is_test=False):
-        pass    
 
 
