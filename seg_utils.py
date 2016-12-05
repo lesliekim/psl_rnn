@@ -400,6 +400,97 @@ def crop_and_save(image_list, argmax_outputs, output_dir, batch_number, pooling_
             name = "{}_{}_{}.bin.png".format(batch_number, i, j)
             cv.imwrite(os.path.join(output_dir, name), crop_image)
 
+'''
+add noise to image(numpy array):
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    noise = np.random.normal(mean, stddev, (img_height, img_width)
+    image += noise
+'''
+
+'''
+ROC
+'''
+def match(truth_seq, forecast_seq, neighborhood):
+    '''
+    Match forecase sequence to groundtruth sequence using greedy algorithm
+
+    Inputs:
+    truth_seq: list, in general it is a 0-1 array
+    forecast_seq: list, floating points between 0-1
+    neighborhood: int, searching possible matching within neighborhood
+
+    Outputs:
+    match_seq: list, each item indicate a horizontal position in original image,
+    if 0, this position is not matched
+    if a floating point between 0-1, this position is matched
+    match_prob: list, only store matched points' probability
+    '''
+    # some check step
+    truth_len = len(truth_seq)
+    forecast_len = len(forecast_seq)
+    if truth_len != forecast_len:
+        raise ValueError('groundtruth sequence and forecast sequence do not have equal length: {} : {}'.format(truth_len, forecast_len))
+    
+    is_selected = [False] * truth_len 
+    match_seq = [0] * truth_len
+    match_prob = []
+    for i, item in enumerate(truth_seq):
+        if item == 1:
+            left = max(0, i - neighborhood)
+            right = min(truth_len - 1, i + neighborhood)
+
+            max_prob = 0
+            match_index = -1
+            for j in range(left, right + 1):
+                if (not is_selected[j]) and forecast_seq[j] >= max_prob:
+                    max_prob = forecast_seq[j]
+                    match_index = j
+
+            # greedy algorithm may face some problem, but its probability is very small
+            if match_index == -1:
+                raise ValueError('Can not match sequence under current neighborhood!')
+
+            is_selected[match_index] = True # lock this position, it has been match
+            match_seq[match_index] = max_prob
+            match_prob.append(max_prob)
+
+    return match_seq, match_prob
+
+def ROC(match_prob, total_truth_number, step=0.1):
+    '''
+    Calculate the ROC line, total complexity is O(N + M + KlogK), "N" is 
+    groundtruth line number, "M" is the forecast line number, "K" is the matched
+    line number
+    Fomula: recall = matched line number / groundtruth line number
+
+    Inputs:
+    match_prob: 
+    '''
+    match_prob.sort() # sort the matched points' probability
+    match_prob_len = len(match_prob)
+    total_steps = int(math.ceil(1.0 / step) + 1)
+    roc_line = [] # item is pair (matched line number, recall)
+
+    cur_index = 0
+    for i in xrange(total_steps):
+        threshold = i * step
+        while cur_index < match_prob_len and  match_prob[cur_index] < threshold:
+            cur_index += 1
+
+        lines = match_prob_len - cur_index
+        roc_line.append((lines, (0.0 + lines) / total_truth_number)) # add 0.0 to switch int to float
+
+    return roc_line
+
+'''
+# test my ROC process
+truth_seq = [0,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,0,0,1,0]
+forecast_seq = [random.uniform(0,1) for i in xrange(20)]
+match_seq, match_prob = match(truth_seq, forecast_seq, 2)
+roc_line = ROC(match_prob, 20)
+print roc_line
+'''
 
 
     
+
