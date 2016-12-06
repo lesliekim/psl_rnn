@@ -72,6 +72,7 @@ def get_all_filename(pathname):
     return filename_list
 
 readfile_count = 0
+
 def make_readfile(datadir, outputdir):
     '''
     datadir: data direction
@@ -131,13 +132,15 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
 
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/father_test']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/father_testfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/testdata_64'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/synthesis_father_testfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/synthesis_traindata'
     has_readfile = False
     
     if not os.path.exists(data_outdir):
         os.mkdir(data_outdir)
+    if not os.path.exists(readfile_outdir):
+        os.mkdir(readfile_outdir)
 
     if has_readfile:
         file_list = get_readfile(readfile_outdir)

@@ -108,7 +108,7 @@ class CnnRnnModel(object):
         # decoded, log_prob = ctc.ctc_greedy_decoder(logits, tf.cast(seq_len, dtype='int32'))
 
         # slower but better
-        self.decoded, self.log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(seq_len, dtype='int32'))
+        self.decoded, self.log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(seq_len, dtype='int32'), merge_repeated=False)
 
         # Accuracy: label error rate
         self.err = tf.reduce_sum(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.targets, normalize=False))
@@ -223,7 +223,7 @@ class BiRnnModel(object):
         self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
 
 
-        self.decoded, self.log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(self.seq_len, dtype='int32'))
+        self.decoded, self.log_prob = ctc.ctc_beam_search_decoder(logits, tf.cast(self.seq_len, dtype='int32'), merge_repeated=False)
 
 
         # Accuracy: label error rate
@@ -608,3 +608,115 @@ class SegNet_crop(object):
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 
+class SegBiRnnModel(object):
+    def __init__(self, batch_size=1, keep_prob_1=1.0, keep_prob_2=1.0, keep_prob_3=1.0):
+        # Network configs
+        momentum = 0.9
+        learning_rate = 1e-4
+        model_type = 'lstm'
+        image_height = seg_height
+        num_classes = 2 
+        num_hidden_1 = 50
+        num_hidden_2 = 100
+        num_hidden_3 = 200
+
+        # Has size [batch_size, max_stepsize, num_features], but the
+        # batch_size and max_stepsize can vary along each step
+        self.inputs = tf.placeholder(tf.float32, [None, image_height, None,1], name="inputs")
+        inputs= tf.transpose(self.inputs, (0,2,1,3))
+        inputs = tf.reshape(inputs, [tf.shape(inputs)[0], -1, image_height])
+        # TODO(rabbit): modity the normalization
+        inputs = (inputs - 0.1) / 0.3
+
+        # Here we use sparse_placeholder that will generate a
+        # SparseTensor required by ctc_loss op.
+        self.targets = tf.placeholder(tf.int64, shape=[None,None,2], name="targets")
+
+        # 1d array of size [batch_size]
+        self.seq_len = tf.placeholder(tf.int64, [None], name="seq_len")
+
+        # Defining the cell
+        # Can be:
+
+        additional_cell_args = {}
+        if model_type == 'rnn':
+            cell_fn = tf.nn.rnn_cell.BasicRNNCell
+        elif model_type == 'gru':
+            cell_fn = tf.nn.rnn_cell.GRUCell
+        elif model_type == 'lstm':
+            cell_fn = tf.nn.rnn_cell.BasicLSTMCell
+            additional_cell_args.update({'state_is_tuple': True})
+        elif model_type == 'lstm peep':
+            cell_fn = tf.nn.rnn_cell.BasicLSTMCell
+            additional_cell_args.update({'state_is_tuple': True, 'use_peepholes': True})
+        elif model_type == 'gridlstm':
+            cell_fn = grid_rnn.Grid2LSTMCell
+            additional_cell_args.update({'use_peepholes': True, 'forget_bias': 1.0})
+        elif model_type == 'gridgru':
+            cell_fn = grid_rnn.Grid2GRUCell
+        else:
+            raise Exception("model type not supported: {}".format(model_type))
+
+        rnn_fw_1 = cell_fn(num_hidden_1, **additional_cell_args)
+        rnn_bw_1 = cell_fn(num_hidden_1, **additional_cell_args)
+        rnn_fw_2 = cell_fn(num_hidden_2, **additional_cell_args)
+        rnn_bw_2 = cell_fn(num_hidden_2, **additional_cell_args)
+        rnn_fw_3 = cell_fn(num_hidden_3, **additional_cell_args)
+        rnn_bw_3 = cell_fn(num_hidden_3, **additional_cell_args)
+
+        rnn_fw_1 = tf.nn.rnn_cell.DropoutWrapper(rnn_fw_1, input_keep_prob=keep_prob_1)
+        rnn_bw_1 = tf.nn.rnn_cell.DropoutWrapper(rnn_bw_1, input_keep_prob=keep_prob_1)
+        rnn_fw_2 = tf.nn.rnn_cell.DropoutWrapper(rnn_fw_2, input_keep_prob=keep_prob_2)
+        rnn_bw_2 = tf.nn.rnn_cell.DropoutWrapper(rnn_bw_2, input_keep_prob=keep_prob_2)
+        rnn_fw_3 = tf.nn.rnn_cell.DropoutWrapper(rnn_fw_3, input_keep_prob=keep_prob_3)
+        rnn_bw_3 = tf.nn.rnn_cell.DropoutWrapper(rnn_bw_3, input_keep_prob=keep_prob_3)
+
+        # The second output is the last state and we will no use that
+        # outputs, state = tf.nn.rnn(cell, inputs, dtype=tf.float32)
+
+        with tf.variable_scope('layer1'):
+            outputs_1, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_1, rnn_bw_1, inputs, self.seq_len,
+                                                           dtype=tf.float32, parallel_iterations=batch_size)
+            # TODO(rabbit): remove it
+            outputs_1 = tf.concat(2, outputs_1)
+        with tf.variable_scope('layer2'):
+            outputs_2, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_2, rnn_bw_2, outputs_1, self.seq_len,
+                                                           dtype=tf.float32, parallel_iterations=batch_size)
+            outputs_2 = tf.concat(2, outputs_2)
+        with tf.variable_scope('layer3'):
+            outputs, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_3, rnn_bw_3, outputs_2, self.seq_len,
+                                                         dtype=tf.float32, parallel_iterations=batch_size)
+            outputs = tf.concat(2, outputs)
+
+        shape = tf.shape(inputs)
+        batch_s, max_timesteps = shape[0], shape[1]
+
+        # Reshaping to apply the same weights over the timesteps
+        outputs = tf.reshape(outputs, [-1, num_hidden_3 * 2])  # bi_directional
+
+        # Truncated normal with mean 0 and stdev=0.1
+        W = tf.Variable(tf.truncated_normal([num_hidden_3 * 2, num_classes], stddev=0.01))
+        b = tf.Variable(tf.constant(0., shape=[num_classes]))
+
+        # Doing the affine projection
+        logits = tf.matmul(outputs, W) + b
+
+        # Reshaping back to the original shape
+        logits = tf.reshape(logits, [batch_s, -1, num_classes])
+
+        self.logits_prob = tf.nn.softmax(logits, dim=-1)
+
+        # Time major
+        logits = tf.transpose(logits, (1, 0, 2))
+
+        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.targets))
+
+        self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
+
+        # Accuracy: label error rate
+        self.argmax_logits = tf.argmax(logits, 2)
+        self.argmax_targets = tf.argmax(self.targets, 2)
+        correct_prediction = tf.equal(self.argmax_logits, self.argmax_targets)
+        self.err = 1.0 - tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        self.saver = tf.train.Saver(max_to_keep=0)

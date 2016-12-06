@@ -59,10 +59,11 @@ def get_row(sparse_tuple, row, dtype=np.int32):
     return optlist
 
 class Loader(object):
-    def __init__(self, datadir, set_list = [], batch_size = 1):
+    def __init__(self, datadir, set_list = [], batch_size = 1, is_sparse=False): 
         self.count = 0
         self.batch_size = batch_size
         self.norm_height = norm_height
+        self.is_sparse = is_sparse
         print('Data Loader initializing ...')
         self.image = []
         self.label = []
@@ -98,8 +99,11 @@ class Loader(object):
             x_batch[i,:, :step_batch[i], 0] = x_batch_seq[i]
 
         # Creating sparse representation to feed the placeholder
-        #y_batch = sparse_array(y_batch_seq, max_width, on_value=1, off_value=0)
-        y_batch = pad_array(y_batch_seq, max_width)
+        if self.is_sparse:
+            y_batch = sparse_array(y_batch_seq, max_width, on_value=1, off_value=0)
+        else:
+            y_batch = pad_array(y_batch_seq, max_width)
+
         tar_len_batch = 0
         for y in y_batch_seq:
             tar_len_batch += len(y)

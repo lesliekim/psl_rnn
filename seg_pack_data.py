@@ -7,7 +7,7 @@ import re
 import seg_param as param
 
 
-def read_file(filename, datadir, outdir, resize=False, newsize=1):
+def read_file(filename, outdir, resize=False, newsize=1):
     image_list = []
     label_list = []
     out_filename = filename.split('/')[-1].split('.')[0]
@@ -16,15 +16,18 @@ def read_file(filename, datadir, outdir, resize=False, newsize=1):
         for name in f:
             name = name.strip()
             
-            with open(os.path.join(datadir, name + '.txt')) as lf:
+            with open(name + '.std') as lf:
                 seg_pos = [float(x.strip()) for x in lf]
 
-            image = Image.open(os.path.join(datadir, name + '.bin.png'))
+            image = Image.open(name + '.bin.png')
             image = image.convert('L')
             if resize:
-                dims = (int(round(newsize * image.size[0] / image.size[1])), newsize)
+                original_image_width = image.size[0]
+                original_image_height = image.size[1]
+                dims = (int(round(newsize * original_image_width / original_image_height)), newsize)
                 image = image.resize(dims)
-                seg_pos = [int(round(x * newsize / image.size[1])) for x in seg_pos]
+                seg_pos_resize = [int(round(x * newsize / original_image_height)) for x in seg_pos]
+                seg_pos = seg_pos_resize
 
             # make label
             label = [0] * image.size[0] # width = image.size[0]
@@ -60,15 +63,22 @@ def get_all_filename(pathname):
     return filename_list
 
 readfile_count = 0
-def make_readfile(datadir, outputdir):
+def make_readfile(datadir, outputdir, no_subfolder=True):
     '''
     datadir: data direction
     outputdir:separating files direction.separate data into small set for pickle,
     '''
     global readfile_count
-    name_list = set([x.split('.')[0] for x in os.listdir(datadir)])
+    if no_subfolder:
+        name_list = set([x.split('.')[0] for x in os.listdir(datadir)])
+    else:
+        name_list = []
+        folders = os.listdir(datadir)
+        for folder in folders:
+            name_list += get_all_filename(os.path.join(datadir, folder))
+        
     base_filename = 'data_'
-    filesize = 10000
+    filesize = 500
     file_list = []
     cnt = 0
 
@@ -96,12 +106,12 @@ def get_readfile(readfile_dir):
     file_list = [os.path.join(readfile_dir, f) for f in files]
     return file_list
 
-def bundle_data(file_list, datadir, outdir):
+def bundle_data(file_list, outdir):
     n_height = param.height
     is_resize = param.resize
 
     for f in file_list:
-        read_file(f, datadir, outdir, resize=is_resize, newsize=n_height)
+        read_file(f, outdir, resize=is_resize, newsize=n_height)
 
 def movefile(src_dir, dst_dir):
     assert os.path.exists(src_dir)
@@ -114,15 +124,16 @@ def movefile(src_dir, dst_dir):
         files = os.listdir(src_path)
         for f in files:
             src_file = os.path.join(src_path, f)
-            dst_file = os.path.join(dst_path, f)
+            dst_file = os.path.join(dst_path, f[:-3]+'std')
             shutil.copyfile(src_file, dst_file)
 
-#movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
+#movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position',
+#'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father')
 
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/test_org_times']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/testfile_times'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/testdata_times'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_data_readfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_traindata'
     has_readfile = False
     
     if not os.path.exists(data_outdir):
@@ -130,14 +141,15 @@ if __name__ == '__main__':
     if not has_readfile and not os.path.exists(readfile_outdir):
         os.mkdir(readfile_outdir)
 
+    # file_list should have the full absolute path except suffix
     if has_readfile:
         file_list = get_readfile(readfile_outdir)
     else:
         if type(datadir) == list:
             file_list = []
             for d in datadir:
-                file_list.extend(make_readfile(d, readfile_outdir))
+                file_list.extend(make_readfile(d, readfile_outdir, no_subfolder=False))
         else:
-            file_list = make_readfile(datadir, readfile_outdir)
+            file_list = make_readfile(datadir, readfile_outdir, no_subfolder=False)
 
-    bundle_data(file_list, datadir, data_outdir)
+    bundle_data(file_list, data_outdir)

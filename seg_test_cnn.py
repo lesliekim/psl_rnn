@@ -1,6 +1,6 @@
 import seg_utils as utils
 import tensorflow as tf
-from model import SegNet_crop as Net
+from model import RecNet as Net
 import os
 import sys
 
@@ -11,10 +11,14 @@ epoch = int(sys.argv[2])
 pooling_size = 4
 
 model_file = os.path.join(model_dir, 'model-{}'.format(epoch))
-batch_size = 16 # if image width are not same, batch size can only be "1"
-output_dir = '../psl_data/seg_cnn/crop_image'
+batch_size = 1 # if image width are not same, batch size can only be "1"
+output_dir = '../psl_data/seg_cnn/RecNet_test'
+
+if not os.path.exists(output_dir):
+    os.mkdir(output_dir)
+
 # Loading the data
-test_loader = utils.Loader('../psl_data/seg_cnn/traindata',['data_2'],batch_size)
+test_loader = utils.Loader('../psl_data/seg_cnn/traindata_total',['data_4'],batch_size)
 
 # test
 with tf.Graph().as_default():
