@@ -282,6 +282,9 @@ class DeepConv(object):
 
 
 class SegNet(object):
+    '''
+    Tentative network, bug exits
+    '''
     def __init__(self, batch_size, is_test=False):
         img_height = seg_height
 
@@ -384,7 +387,18 @@ class SegNet(object):
             targets = tf.cast(pool, dtype=tf.int64)
     '''
 
-class RecNet(object):
+class SegCnnNet(object):
+    '''
+    Convolutional Nerual Network for character segmentation
+    Structure: [Conv x n + Pooling] x N + [Conv_] x M
+            the Conv_ layer is using convolutional layer replacing
+            fully connected layer. 
+            See "Fully convolutional networks for semantic segmentation"
+            (Jonathan Long, etc, CVPR 2015) for more information
+    Train and Test inputs: preprocessed images in format 
+        [batch_size, image_height, padded_image_width, channel]channel = 1
+    Train and Test targets: Not one-hot format, [batch_size, padded_image_width]
+    '''
     def __init__(self, batch_size, is_test=False):
         img_height = seg_height
 
@@ -447,6 +461,14 @@ class RecNet(object):
 
 
 class SegRnnNet(object):
+    '''
+    Conbine CNN and RNN networks for charater segmentation
+    Structure: [Conv x n + Pooling] x N + [RNN] x M
+    Train and Test inputs: Preprocessed image in format 
+        [batch_size, image_height, padded_image_width, channel=1]
+    Train and Test targets: One-hot format,
+        [batch_size, padded_image_width, classes_number=2]
+    '''
     def __init__(self, batch_size, is_test=False):
         img_height = seg_height
         num_hidden_1 = 50
@@ -609,6 +631,9 @@ class SegNet_crop(object):
 
 
 class SegBiRnnModel(object):
+    '''
+    Bidrectional RNN network without CTC for character segmentation
+    '''
     def __init__(self, batch_size=1, keep_prob_1=1.0, keep_prob_2=1.0, keep_prob_3=1.0):
         # Network configs
         momentum = 0.9
@@ -678,7 +703,8 @@ class SegBiRnnModel(object):
             outputs_1, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_1, rnn_bw_1, inputs, self.seq_len,
                                                            dtype=tf.float32, parallel_iterations=batch_size)
             # TODO(rabbit): remove it
-            outputs_1 = tf.concat(2, outputs_1)
+            #outputs_1 = tf.concat(2, outputs_1)
+        '''
         with tf.variable_scope('layer2'):
             outputs_2, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_2, rnn_bw_2, outputs_1, self.seq_len,
                                                            dtype=tf.float32, parallel_iterations=batch_size)
@@ -687,15 +713,18 @@ class SegBiRnnModel(object):
             outputs, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_3, rnn_bw_3, outputs_2, self.seq_len,
                                                          dtype=tf.float32, parallel_iterations=batch_size)
             outputs = tf.concat(2, outputs)
-
+        '''
+        outputs = outputs_1
         shape = tf.shape(inputs)
         batch_s, max_timesteps = shape[0], shape[1]
 
         # Reshaping to apply the same weights over the timesteps
-        outputs = tf.reshape(outputs, [-1, num_hidden_3 * 2])  # bi_directional
+        #outputs = tf.reshape(outputs, [-1, num_hidden_3 * 2])  # bi_directional
+        outputs = tf.reshape(outputs, [-1, num_hidden_1 * 2])  # bi_directional
 
         # Truncated normal with mean 0 and stdev=0.1
-        W = tf.Variable(tf.truncated_normal([num_hidden_3 * 2, num_classes], stddev=0.01))
+        #W = tf.Variable(tf.truncated_normal([num_hidden_3 * 2, num_classes], stddev=0.01))
+        W = tf.Variable(tf.truncated_normal([num_hidden_1 * 2, num_classes], stddev=0.01))
         b = tf.Variable(tf.constant(0., shape=[num_classes]))
 
         # Doing the affine projection
@@ -707,12 +736,12 @@ class SegBiRnnModel(object):
         self.logits_prob = tf.nn.softmax(logits, dim=-1)
 
         # Time major
-        logits = tf.transpose(logits, (1, 0, 2))
-
+        #logits = tf.transpose(logits, (1, 0, 2))
         self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.targets))
 
         self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
-
+        
+        logits = tf.nn.softmax(logits, dim=-1)
         # Accuracy: label error rate
         self.argmax_logits = tf.argmax(logits, 2)
         self.argmax_targets = tf.argmax(self.targets, 2)
