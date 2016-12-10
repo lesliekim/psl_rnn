@@ -28,7 +28,6 @@ def sparse_array(sequences, width, on_value, off_value, dtype=np.int32):
     indices = []
 
     for i,seq in enumerate(sequences):
-        target_length = len(seq)
         ans = [[on_value, off_value] for k in xrange(width)]
         for j,item in enumerate(seq):
             if item > 0:
@@ -435,9 +434,8 @@ def match(truth_seq, forecast_seq, neighborhood):
     if truth_len != forecast_len:
         raise ValueError('groundtruth sequence and forecast sequence do not have equal length: {} : {}'.format(truth_len, forecast_len))
     
-    is_selected = [False] * truth_len 
-    match_seq = [0] * truth_len
-    match_prob = []
+    match_seq = [[x, False] for x in forecast_seq]
+    match_line_number = 0
     for i, item in enumerate(truth_seq):
         if item == 1:
             left = max(0, i - neighborhood)
@@ -446,21 +444,22 @@ def match(truth_seq, forecast_seq, neighborhood):
             max_prob = 0
             match_index = -1
             for j in range(left, right + 1):
-                if (not is_selected[j]) and forecast_seq[j] >= max_prob:
+                if (not match_seq[j][1]) and forecast_seq[j] >= max_prob:
                     max_prob = forecast_seq[j]
                     match_index = j
 
+            '''
             # greedy algorithm may face some problem, but its probability is very small
             if match_index == -1:
                 raise ValueError('Can not match sequence under current neighborhood!')
+            '''
+            if match_index > -1:
+                match_seq[match_index][1] = True
+                match_line_number += 1
 
-            is_selected[match_index] = True # lock this position, it has been match
-            match_seq[match_index] = max_prob
-            match_prob.append(max_prob)
+    return match_seq, match_line_number
 
-    return match_seq, match_prob
-
-def ROC(match_prob, total_truth_number, step=0.1):
+def single_roc_line(match_seq, match_line_number, truth_line_number):
     '''
     Calculate the ROC line, total complexity is O(N + M + KlogK), "N" is 
     groundtruth line number, "M" is the forecast line number, "K" is the matched
@@ -470,31 +469,55 @@ def ROC(match_prob, total_truth_number, step=0.1):
     Inputs:
     match_prob: 
     '''
-    match_prob.sort() # sort the matched points' probability
-    match_prob_len = len(match_prob)
-    total_steps = int(math.ceil(1.0 / step) + 1)
-    roc_line = [] # item is pair (matched line number, recall)
+    match_seq = sorted(match_seq, key=lambda d:d[0]) # sort the matched points' probability in ascending order
+    match_seq_len = len(match_seq)
+    roc_line = [] # item: [greater than threshold line number, matched line number, threshold]
 
-    cur_index = 0
-    for i in xrange(total_steps):
-        threshold = i * step
-        while cur_index < match_prob_len and  match_prob[cur_index] < threshold:
-            cur_index += 1
+    left = 0
+    right = 0
+    while left < match_seq_len:
+        while right < match_seq_len and match_seq[right][0] == match_seq[left][0]:
+            if match_seq[right][1]:
+                match_line_number -= 1
+            right += 1
 
-        lines = match_prob_len - cur_index
-        roc_line.append((lines, (0.0 + lines) / total_truth_number)) # add 0.0 to switch int to float
+        roc_line.append([match_seq_len-right+1, (match_line_number+0.0)/truth_line_number, match_seq[left][0]])
+
+        left = right
 
     return roc_line
 
+def ROC(truth_seqs, forecast_seqs, neighborhood=4):
+    # some check
+    if len(truth_seqs) != len(forecast_seqs):
+        raise ValueError("truth sequence and forecast sequence \
+                do not have same length {}:{}".format(len(truth_seqs), len(forecast_seqs)))
+
+    match_seq = []
+    match_line_number = 0
+    truth_line_number = 0
+    for i, patch in enumerate(truth_seqs):
+        for j, truth_seq in enumerate(patch):
+            truth_line_number += truth_seq.count(1)
+            batch_match_seq, batch_match_line_number = \
+                    match(truth_seq, forecast_seqs[i][j], neighborhood)
+
+            match_seq += batch_match_seq
+            match_line_number += batch_match_line_number
+
+    print match_line_number, truth_line_number
+    roc_line = single_roc_line(match_seq, match_line_number, truth_line_number)
+
+    return roc_line
+
+
 '''
 # test my ROC process
-truth_seq = [0,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,0,0,1,0]
-forecast_seq = [random.uniform(0,1) for i in xrange(20)]
-match_seq, match_prob = match(truth_seq, forecast_seq, 2)
-roc_line = ROC(match_prob, 20)
-print roc_line
+truth_seq = [[0,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,0,0,1,0],
+            [0,0,0,0,1,1,1,0,0,1,0,1,0,1,0,0,0,0,0,0]]
+forecast_seq = [[random.uniform(0,1) for i in xrange(20)],
+        [random.uniform(0,1) for j in xrange(20)]]
+
+total_roc = ROC(truth_seq, forecast_seq)
+print total_roc
 '''
-
-
-    
-
