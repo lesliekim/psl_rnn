@@ -411,15 +411,20 @@ class SegCnnNet(object):
 
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
 
+        total_pooling = 4 # two pooling layers with pooling size 2
+        height_after_pooling = img_height / total_pooling
+        
         with tf.variable_scope("full"):
             w_f_test = tf.get_variable('weights',
-                initializer=tf.truncated_normal([8, 8, 64,128], stddev=0.01))
-            w_f_test = tf.reshape(w_f_test, [8, 8, 64, 128])
+                initializer=tf.truncated_normal(\
+                        [height_after_pooling, height_after_pooling, 64,128], stddev=0.01))
+            w_f_test = tf.reshape(w_f_test, \
+                    [height_after_pooling, height_after_pooling, 64, 128])
             b_f_test = tf.get_variable('biases',
                     initializer=tf.truncated_normal([128], stddev=0.01))
 
             h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
-                    strides=[1, 8, 1, 1], padding="SAME")
+                    strides=[1, height_after_pooling, 1, 1], padding="SAME")
             h_conv = tf.nn.relu(tf.nn.bias_add(h_f_test, b_f_test))
 
         with tf.variable_scope("readout"):
@@ -437,7 +442,7 @@ class SegCnnNet(object):
 
         with tf.variable_scope("label_pool"):
             target_pool = tf.cast(tf.reshape(targets, [batch_size, -1, 1, 1]), tf.float32)
-            pool_height = 4
+            pool_height = total_pooling
             pool_width = 1
             pool = tf.nn.max_pool(target_pool, ksize=[1, pool_height, pool_width, 1],
                     strides=[1, pool_height, pool_width, 1], padding="SAME")
@@ -454,6 +459,9 @@ class SegCnnNet(object):
             self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
         
         y_softmax = tf.nn.softmax(y_conv, dim=-1)
+        self.softmax_outputs = y_softmax
+        self.pooled_targets = targets
+
         self.argmax_outputs = tf.argmax(y_softmax, 2)
         self.argmax_targets = tf.argmax(targets, 2)
         correct_prediction = tf.equal(self.argmax_outputs, self.argmax_targets)
@@ -737,11 +745,11 @@ class SegBiRnnModel(object):
 
         # Time major
         #logits = tf.transpose(logits, (1, 0, 2))
-        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits, self.targets))
+        logits = tf.nn.softmax(logits, dim=-1)
+        self.cost = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits, tf.cast(self.targets, tf.float32), 0.0001))
 
         self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
         
-        logits = tf.nn.softmax(logits, dim=-1)
         # Accuracy: label error rate
         self.argmax_logits = tf.argmax(logits, 2)
         self.argmax_targets = tf.argmax(self.targets, 2)
