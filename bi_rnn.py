@@ -1,11 +1,11 @@
 import time
 import os
 
+import seg_utils as utils
+from model import SegBiRnnModel
 import tensorflow as tf
 import numpy as np
-from model import CnnRnnModel
 
-import utils
 
 # Constants
 trainID = time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime()) + \
@@ -14,6 +14,8 @@ checkpoint_dir = "./model/" + trainID
 os.mkdir(checkpoint_dir)
 os.system("cp ./model.py " + checkpoint_dir)
 os.system("cp ./bi_rnn.py " + checkpoint_dir)
+os.system("cp ./test_bi_rnn.py" + checkpoint_dir)
+os.system("cp ./param.py" + checkpoint_dir)
 logFilename = checkpoint_dir + "/log_" + trainID + ".txt"
 model_name = "English" + "_" + trainID
 
@@ -34,7 +36,7 @@ model_dir = './model/2016-09-11_13:36:05_8720/'
 
 # Loading the data
 
-train_loader = utils.Loader('../psl_data/father/traindata_64',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12','data_13'], batch_size)
+train_loader = utils.Loader('../psl_data/father/seg_synthesis_traindata',['data_0','data_1','data_2','data_3','data_5','data_6','data_7','data_9','data_10','data_11','data_13','data_14','data_15'], batch_size, is_sparse=True)
 
 def LOG(Str):
     f = open(logFilename, "a")
@@ -52,7 +54,7 @@ LOG(keep_prob_3)
 # THE MAIN CODE!
 
 with tf.device('/cpu:0'):
-    model = CnnRnnModel(batch_size)
+    model = SegBiRnnModel(batch_size)
 
 
 config = tf.ConfigProto(allow_soft_placement=True)
@@ -92,6 +94,9 @@ with tf.Session(config=config) as session:
             # model.err op has been removed to speed up training !
             batch_cost, _ =\
                 session.run([model.cost, model.optimizer], feed)
+
+            #print "argmax logits: {}".format(argmax_logits.shape)
+            #print "argmax targets: {}".format(argmax_targets.shape)
 
             train_cost += batch_cost*np.shape(batch_x_train)[0]
             #train_err += batch_err

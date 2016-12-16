@@ -13,17 +13,16 @@ epoch = int(sys.argv[2])
 pooling_size = 4
 
 model_file = os.path.join(model_dir, 'model-{}'.format(epoch))
-batch_size = 16
-output_dir = '../psl_data/seg_cnn/ROC_test'
+batch_size = 8
+output_dir = '../psl_data/father/ROC_test'
 
 if not os.path.exists(output_dir):
     os.mkdir(output_dir)
 
 # Loading the data
-test_loader = utils.Loader('../psl_data/seg_cnn/traindata_total',['data_4'],batch_size)
+test_loader = utils.Loader('../psl_data/father/seg_synthesis_traindata',['data_4'],batch_size)
 
 # parameter for roc
-roc_step = 0.1
 truth_seqs = []
 forecast_seqs = []
 
@@ -48,7 +47,6 @@ with tf.Graph().as_default():
             model.inputs: batch_x_test,
             model.targets: batch_y_test,
         })
-
         # save output
         #utils.crop_and_save(batch_x_test, argmax_outputs[0], output_dir, i, pooling_size)
         

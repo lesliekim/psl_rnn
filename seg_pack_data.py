@@ -134,7 +134,7 @@ if __name__ == '__main__':
     datadir = ['/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father']
     readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_data_readfile'
     data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_traindata'
-    has_readfile = False
+    has_readfile = True
     
     if not os.path.exists(data_outdir):
         os.mkdir(data_outdir)

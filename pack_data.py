@@ -6,6 +6,8 @@ import numpy as np
 import re
 import param
 
+label_suffix = param.label_suffix
+image_suffix = param.image_suffix
 
 def read_file(filename, datadir, outdir, resize=False, newsize=1):
     image_list = []
@@ -22,7 +24,7 @@ def read_file(filename, datadir, outdir, resize=False, newsize=1):
                 name = name[:-1]
             
             is_valid = True
-            with open(os.path.join(datadir, name + '.txt')) as lf:
+            with open(name + label_suffix) as lf:
                 label = lf.readline()
                 if label[-1] == '\n':
                     label = label[:-1]
@@ -39,7 +41,7 @@ def read_file(filename, datadir, outdir, resize=False, newsize=1):
                         label_list.append(mapped_label)
 
             if is_valid:
-                image = Image.open(os.path.join(datadir, name + '.bin.png'))
+                image = Image.open(name + image_suffix)
                 image = image.convert('L')
                 if resize:
                     dims = (int(round(newsize * image.size[0] / image.size[1])), newsize)
@@ -73,19 +75,24 @@ def get_all_filename(pathname):
 
 readfile_count = 0
 
-def make_readfile(datadir, outputdir):
+def make_readfile(datadir, outputdir, has_subfolder=False):
     '''
     datadir: data direction
     outputdir:separating files direction.separate data into small set for pickle,
     '''
     global readfile_count
-    folders = os.listdir(datadir)
     base_filename = 'data_'
     filesize = 500
     file_list = []
     name_list = []
-    for folder in folders:
-        name_list += get_all_filename(os.path.join(datadir, folder))
+    # get all images
+    if has_subfolder:
+        folders = os.listdir(datadir)
+        for folder in folders:
+            name_list += get_all_filename(os.path.join(datadir, folder))
+    else:
+        name_list = list(set([os.path.join(datadir, x.split('.')[0]) for x in os.listdir(datadir)]))
+
     cnt = 0
     f = open(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'), 'w')
     file_list.append(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'))
@@ -132,10 +139,14 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
 
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/synthesis_father_testfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/synthesis_traindata'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/English_card_hard/url1000', 
+                '/home/jia/psl/tf_rnn/psl_data/English_card_hard/name_card1000', 
+                '/home/jia/psl/tf_rnn/psl_data/English_card_hard/email1000']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/trainfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/traindata'
     has_readfile = False
+    has_subfolder = False # if datadir has subfolders and images are in different subfolders, 
+                            # set this variable to be True
     
     if not os.path.exists(data_outdir):
         os.mkdir(data_outdir)
@@ -148,8 +159,8 @@ if __name__ == '__main__':
         if type(datadir) == list:
             file_list = []
             for d in datadir:
-                file_list.extend(make_readfile(d, readfile_outdir))
+                file_list.extend(make_readfile(d, readfile_outdir, has_subfolder))
         else:
-            file_list = make_readfile(datadir, readfile_outdir)
+            file_list = make_readfile(datadir, readfile_outdir, has_subfolder)
 
     bundle_data(file_list, datadir, data_outdir)

@@ -1,6 +1,6 @@
 import seg_utils as utils
 import tensorflow as tf
-from model import RecNet as Net
+from model import SegCnnNet as Net
 import numpy as np
 import time
 import os
