@@ -20,23 +20,24 @@ def read_file(filename, datadir, outdir, resize=False, newsize=1):
 
     with open(filename,'r') as f:
         for name in f:
-            if name[-1] == '\n':
-                name = name[:-1]
+            name = name.strip()
             
             is_valid = True
             with open(name + label_suffix) as lf:
                 label = lf.readline()
-                if label[-1] == '\n':
-                    label = label[:-1]
+                label = label.strip()
                 if len(label) > threshold:
                     is_valid = False
+                    print "too long " + str(len(label)) + " " + name
                 else:
                     mapped_label = []
+                    mylabel = ''
                     for w in label:
                         if ord(w) >= num_classes - 1: # out of basic asic
                             is_valid = False
                         else:
                             mapped_label.append(ord(w))
+
                     if is_valid:
                         label_list.append(mapped_label)
 
@@ -96,13 +97,15 @@ def make_readfile(datadir, outputdir, has_subfolder=False):
     cnt = 0
     f = open(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'), 'w')
     file_list.append(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'))
-    for item in name_list:
+    for i,item in enumerate(name_list):
         f.write(item)
         f.write('\n')
         cnt += 1
         if cnt % filesize == 0:
             f.close()
             readfile_count += 1
+            if i == len(name_list) - 1:
+                break
             f = open(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'), 'w')
             file_list.append(os.path.join(outputdir, base_filename + str(readfile_count) + '.txt'))
             cnt = 0
@@ -139,11 +142,9 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
 
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/English_card_hard/url1000', 
-                '/home/jia/psl/tf_rnn/psl_data/English_card_hard/name_card1000', 
-                '/home/jia/psl/tf_rnn/psl_data/English_card_hard/email1000']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/trainfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/traindata'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary'] 
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary_trainfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary_traindata'
     has_readfile = False
     has_subfolder = False # if datadir has subfolders and images are in different subfolders, 
                             # set this variable to be True

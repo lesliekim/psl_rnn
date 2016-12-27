@@ -6,6 +6,9 @@ import numpy as np
 import re
 import seg_param as param
 
+label_suffix = param.label_suffix
+image_suffix = param.image_suffix
+file_size = param.file_size
 
 def read_file(filename, outdir, resize=False, newsize=1):
     image_list = []
@@ -16,10 +19,10 @@ def read_file(filename, outdir, resize=False, newsize=1):
         for name in f:
             name = name.strip()
             
-            with open(name + '.std') as lf:
+            with open(name + label_suffix) as lf:
                 seg_pos = [float(x.strip()) for x in lf]
 
-            image = Image.open(name + '.bin.png')
+            image = Image.open(name + image_suffix)
             image = image.convert('L')
             if resize:
                 original_image_width = image.size[0]
@@ -63,14 +66,14 @@ def get_all_filename(pathname):
     return filename_list
 
 readfile_count = 0
-def make_readfile(datadir, outputdir, no_subfolder=True):
+def make_readfile(datadir, outputdir, has_subfolder=False):
     '''
     datadir: data direction
     outputdir:separating files direction.separate data into small set for pickle,
     '''
     global readfile_count
-    if no_subfolder:
-        name_list = set([x.split('.')[0] for x in os.listdir(datadir)])
+    if not has_subfolder:
+        name_list = list(set([os.path.join(datadir, x.split('.')[0]) for x in os.listdir(datadir)]))
     else:
         name_list = []
         folders = os.listdir(datadir)
@@ -78,7 +81,7 @@ def make_readfile(datadir, outputdir, no_subfolder=True):
             name_list += get_all_filename(os.path.join(datadir, folder))
         
     base_filename = 'data_'
-    filesize = 500
+    filesize = file_size
     file_list = []
     cnt = 0
 
@@ -131,10 +134,13 @@ def movefile(src_dir, dst_dir):
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father')
 
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_data_readfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/father/seg_synthesis_traindata'
-    has_readfile = True
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_times_1',
+                '/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_cambria_1',
+                '/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_calibri_1']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_total_1'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_total_1'
+    has_readfile = False
+    has_subfolder = False
     
     if not os.path.exists(data_outdir):
         os.mkdir(data_outdir)
@@ -148,8 +154,8 @@ if __name__ == '__main__':
         if type(datadir) == list:
             file_list = []
             for d in datadir:
-                file_list.extend(make_readfile(d, readfile_outdir, no_subfolder=False))
+                file_list.extend(make_readfile(d, readfile_outdir, has_subfolder))
         else:
-            file_list = make_readfile(datadir, readfile_outdir, no_subfolder=False)
+            file_list = make_readfile(datadir, readfile_outdir, has_subfolder)
 
     bundle_data(file_list, data_outdir)

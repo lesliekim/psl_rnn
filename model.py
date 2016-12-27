@@ -113,7 +113,7 @@ class CnnRnnModel(object):
         # Accuracy: label error rate
         self.err = tf.reduce_sum(tf.edit_distance(tf.cast(self.decoded[0], tf.int32), self.targets, normalize=False))
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=0)
 
 
 class BiRnnModel(object):
@@ -746,7 +746,7 @@ class SegBiRnnModel(object):
         # Time major
         #logits = tf.transpose(logits, (1, 0, 2))
         logits = tf.nn.softmax(logits, dim=-1)
-        self.cost = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits, tf.cast(self.targets, tf.float32), 0.0001))
+        self.cost = tf.reduce_mean(tf.nn.weighted_cross_entropy_with_logits(logits, tf.cast(self.targets, tf.float32), 10000)) / 10000.0
 
         self.optimizer = tf.train.MomentumOptimizer(learning_rate, momentum).minimize(self.cost)
         

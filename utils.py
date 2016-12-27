@@ -67,8 +67,9 @@ class Loader(object):
             y_batch_seq = self.label[self.count : self.count + self.batch_size]
             self.count += self.batch_size
         else:
-            x_batch_seq = self.image[self.count :]
-            y_batch_seq = self.label[self.count :]
+            left_num = self.count + self.batch_size - self.train_length
+            x_batch_seq = self.image[self.count :] + self.image[0 : left_num]
+            y_batch_seq = self.label[self.count :] + self.label[0 : left_num]
             self.count = 0
 
         step_batch = np.zeros(shape=[len(x_batch_seq)], dtype='int64')
