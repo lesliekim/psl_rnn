@@ -4,8 +4,8 @@ import sys
 
 import tensorflow as tf
 import numpy as np
-import seg_utils as utils
-from model import SegBiRnnModel
+import  utils
+from model import BiRnnModel
 
 arg = sys.argv[1]
 epoch = int(sys.argv[2])
@@ -29,8 +29,8 @@ if not os.path.exists(prob_dir):
     os.mkdir(prob_dir)
 
 # Loading the data
-test_loader = utils.Loader('../psl_data/father/seg_synthesis_traindata',\
-        ['data_4','data_8','data_12','data_16'], batch_size, is_sparse=True)
+test_loader = utils.Loader('../psl_data/gulliver/testdata',\
+        ['data_0','data_1','data_2','data_3'], batch_size)
 
 def LOG(Str):
     f1 = open(logFilename, "a")
@@ -43,7 +43,7 @@ LOG("Test ID: " + str(testID))
 # THE MAIN CODE!
 with tf.device('/gpu:1'):
 
-    model = SegBiRnnModel(batch_size)
+    model = BiRnnModel(batch_size)
 
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True
@@ -95,8 +95,8 @@ with tf.Session(config=config) as sess:
             .format(i+1, test_loader.batch_number, tmp_err, batch_tar_len, tmp_ctc_err, time.time() - batch_start))
 
     test_ctc_err /= test_loader.train_length
-    #test_err /= test_loader.target_len
-    test_err /= test_loader.batch_number
+    test_err /= test_loader.target_len
+    #test_err /= test_loader.batch_number
     # Calculate accuracy on the whole testing set
     LOG("Test Label Error: {:.5f}, Test CTC Error: {:.5f}, Time = {:.3f}"
         .format(test_err, test_ctc_err, time.time() - start))

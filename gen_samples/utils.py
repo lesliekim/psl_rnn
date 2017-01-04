@@ -49,9 +49,18 @@ def adhesion_samples(text, font_type='cambria', font_size=16,
     image, rect = font.render(text, fg, bg)
 
     char_rect = []
+    space_width = int(font_size * 0.3)
+    space_height = int(font_size * 0.4)
     for c in text:
         c_rect = font.get_rect(c)
-        char_rect.append(c_rect)
+
+        if not c_rect[2]:
+            c_rect[2] = space_width
+        if not c_rect[3]:
+            c_rect[1] = c_rect[3] = space_height
+        
+        if c_rect[2]:
+            char_rect.ap1pend(c_rect)
       
     img_width = sum(x[2] for x in char_rect) + 1 + space_pad * (len(text) - 1)
     img_height = rect[3]

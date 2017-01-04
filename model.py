@@ -3,6 +3,7 @@ from tensorflow.python.ops import ctc_ops as ctc  # ctc no more in contrib
 from tensorflow.contrib import grid_rnn
 import param
 import seg_param
+import classify_param
 import math
 import utils
 import numpy as np
@@ -407,21 +408,28 @@ class SegCnnNet(object):
         self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
         targets = self.targets
 
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, 64, 2, 2]]
+        conv_output_channel = 64
+        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
+        full_node_num = 128
+        total_pooling = 4 # two pooling layers with pooling size 2
+        height_after_pooling = img_height / total_pooling
+
+        # current best work
+        #conv_output_channel = 64
+        #full_node_num = 128
+        #conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]] 
 
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
 
-        total_pooling = 4 # two pooling layers with pooling size 2
-        height_after_pooling = img_height / total_pooling
         
         with tf.variable_scope("full"):
             w_f_test = tf.get_variable('weights',
                 initializer=tf.truncated_normal(\
-                        [height_after_pooling, height_after_pooling, 64,128], stddev=0.01))
+                        [height_after_pooling, height_after_pooling, conv_output_channel,full_node_num], stddev=0.01))
             w_f_test = tf.reshape(w_f_test, \
-                    [height_after_pooling, height_after_pooling, 64, 128])
+                    [height_after_pooling, height_after_pooling, conv_output_channel, full_node_num])
             b_f_test = tf.get_variable('biases',
-                    initializer=tf.truncated_normal([128], stddev=0.01))
+                    initializer=tf.truncated_normal([full_node_num], stddev=0.01))
 
             h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
                     strides=[1, height_after_pooling, 1, 1], padding="SAME")
@@ -429,8 +437,8 @@ class SegCnnNet(object):
 
         with tf.variable_scope("readout"):
             w_r_test = tf.get_variable('weights',
-                initializer=tf.truncated_normal([1, 1, 128,2], stddev=0.01))
-            w_r_test = tf.reshape(w_r_test, [1, 1, 128, 2])
+                initializer=tf.truncated_normal([1, 1, full_node_num,2], stddev=0.01))
+            w_r_test = tf.reshape(w_r_test, [1, 1, full_node_num, 2])
             b_r_test = tf.get_variable('biases',
                     initializer=tf.truncated_normal([2], stddev=0.01))
 
@@ -456,7 +464,10 @@ class SegCnnNet(object):
 
         if not is_test:
             # optimizer
+            #self.optimizer = tf.train.MomentumOptimizer(1e-4, 0.9).minimize(self.loss)
             self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
+            #self.optimizer = tf.train.GradientDescentOptimizer(1e-5).minimize(self.loss)
+            #self.optimizer = tf.train.AdadeltaOptimizer(1e-4).minimize(self.loss)
         
         y_softmax = tf.nn.softmax(y_conv, dim=-1)
         self.softmax_outputs = y_softmax
@@ -757,3 +768,158 @@ class SegBiRnnModel(object):
         self.err = 1.0 - tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
         self.saver = tf.train.Saver(max_to_keep=0)
+
+
+class SegCnnNet_1(object):
+    '''
+    Convolutional Nerual Network for character segmentation 
+    The only difference with SegCnnNet is that this network support multi-label,
+    while SegCnnNet only support 2 classes (0 and 1)
+    Structure: [Conv x n + Pooling] x N + [Conv_] x M
+            the Conv_ layer is using convolutional layer replacing
+            fully connected layer. 
+            See "Fully convolutional networks for semantic segmentation"
+            (Jonathan Long, etc, CVPR 2015) for more information
+    Train and Test inputs: preprocessed images in format 
+        [batch_size, image_height, padded_image_width, channel]channel = 1
+    Train and Test targets: Not one-hot format, [batch_size, padded_image_width]
+    '''
+    def __init__(self, batch_size, is_test=False):
+        img_height = seg_height
+
+        self.inputs = tf.placeholder(tf.float32, shape=[None, img_height, None, 1], name="inputs")
+        inputs = self.inputs
+        self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
+        targets = self.targets
+
+        num_classes = 3
+        conv_output_channel = 64
+        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
+        full_node_num = 128
+        total_pooling = 4 # two pooling layers with pooling size 2
+        height_after_pooling = img_height / total_pooling
+
+        deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
+
+        
+        with tf.variable_scope("full"):
+            w_f_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal(\
+                        [height_after_pooling, height_after_pooling, conv_output_channel,full_node_num], stddev=0.01))
+            w_f_test = tf.reshape(w_f_test, \
+                    [height_after_pooling, height_after_pooling, conv_output_channel, full_node_num])
+            b_f_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([full_node_num], stddev=0.01))
+
+            h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
+                    strides=[1, height_after_pooling, 1, 1], padding="SAME")
+            h_conv = tf.nn.relu(tf.nn.bias_add(h_f_test, b_f_test))
+
+        with tf.variable_scope("readout"):
+            w_r_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal([1, 1, full_node_num,num_classes], stddev=0.01))
+            w_r_test = tf.reshape(w_r_test, [1, 1, full_node_num, num_classes])
+            b_r_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([num_classes], stddev=0.01))
+
+            h_r_test = tf.nn.conv2d(h_conv, w_r_test, 
+                    strides=[1, 1, 1, 1], padding='SAME')
+            y_conv = tf.nn.relu(tf.nn.bias_add(h_r_test, b_r_test))
+            y_conv = tf.reshape(y_conv, [batch_size, -1, num_classes])
+
+
+        with tf.variable_scope("label_pool"):
+            target_pool = tf.cast(tf.reshape(targets, [batch_size, -1, 1, 1]), tf.float32)
+            pool_height = total_pooling
+            pool_width = 1
+            pool = tf.nn.max_pool(target_pool, ksize=[1, pool_height, pool_width, 1],
+                    strides=[1, pool_height, pool_width, 1], padding="SAME")
+            pool = tf.cast(pool, dtype=tf.int32)
+            targets = tf.one_hot(tf.reshape(pool, [batch_size, -1]), depth=num_classes, 
+                    on_value=1, off_value=0, axis=-1, dtype=tf.int32)
+            #targets = tf.cast(pool, dtype=tf.int64)
+
+        # loss
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
+
+        if not is_test:
+            # optimizer
+            #self.optimizer = tf.train.MomentumOptimizer(1e-4, 0.9).minimize(self.loss)
+            self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
+            #self.optimizer = tf.train.GradientDescentOptimizer(1e-5).minimize(self.loss)
+            #self.optimizer = tf.train.AdadeltaOptimizer(1e-4).minimize(self.loss)
+        
+        y_softmax = tf.nn.softmax(y_conv, dim=-1)
+        self.softmax_outputs = y_softmax
+        self.pooled_targets = targets
+
+        self.argmax_outputs = tf.argmax(y_softmax, 2)
+        self.argmax_targets = tf.argmax(targets, 2)
+        correct_prediction = tf.equal(self.argmax_outputs, self.argmax_targets)
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+'''
+Models for classification
+'''
+
+class ClassifyCnnNet(object):
+    def __init__(self, batch_size, is_test=False):
+        height = classify_param.resize_height
+        width = classify_param.resize_width
+        num_classes = classify_param.num_classes
+
+        self.inputs = tf.placeholder(tf.float32, shape=[None, height, width,1], name="inputs")
+        inputs = self.inputs
+        self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
+        targets = self.targets
+
+        conv_output_channel = 64
+        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
+        full_node_num = 128
+        total_pooling = 4 # two pooling layers with pooling size 2
+        height_after_pooling = height / total_pooling
+
+        deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
+
+        flat_length = height_after_pooling * height_after_pooling * conv_output_channel
+        deep_conv_flat = tf.reshape(deep_conv, [-1, flat_length])
+
+        with tf.variable_scope("full"):
+            w_f_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal([flat_length, full_node_num], stddev=0.01))
+            w_f_test = tf.reshape(w_f_test, [flat_length, full_node_num])
+            b_f_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([full_node_num], stddev=0.01))
+
+            h_fc1 = tf.nn.relu(tf.matmul(deep_conv_flat, w_f_test) + b_f_test)
+
+        with tf.variable_scope("readout"):
+            w_r_test = tf.get_variable('weights',
+                initializer=tf.truncated_normal([full_node_num,num_classes], stddev=0.01))
+            w_r_test = tf.reshape(w_r_test, [full_node_num, num_classes])
+            b_r_test = tf.get_variable('biases',
+                    initializer=tf.truncated_normal([num_classes], stddev=0.01))
+
+            y_conv = tf.matmul(h_fc1, w_r_test) + b_r_test
+
+        
+        #targets = tf.one_hot(tf.reshape(targets, [batch_size, -1]), depth=num_classes, 
+        #       on_value=1, off_value=0, axis=-1, dtype=tf.int32)
+        # loss
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
+
+        if not is_test:
+            # optimizer
+            #self.optimizer = tf.train.MomentumOptimizer(1e-4, 0.9).minimize(self.loss)
+            self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
+            #self.optimizer = tf.train.GradientDescentOptimizer(1e-5).minimize(self.loss)
+            #self.optimizer = tf.train.AdadeltaOptimizer(1e-4).minimize(self.loss)
+        
+        y_softmax = tf.nn.softmax(y_conv, dim=-1)
+        self.softmax_outputs = y_softmax
+
+        self.argmax_outputs = tf.argmax(y_softmax, 1)
+        self.argmax_targets = tf.argmax(targets, 1)
+        correct_prediction = tf.equal(self.argmax_outputs, self.argmax_targets)
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+

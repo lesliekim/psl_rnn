@@ -1,17 +1,18 @@
 import os
-import Image
+import cv2 as cv
 import pickle
 import shutil
 import numpy as np
 import re
-import seg_param as param
+import classify_param as param
 
 label_suffix = param.label_suffix
 image_suffix = param.image_suffix
 file_size = param.file_size
-multi_label = param.multi_label
+resize_height = param.resize_height
+resize_width = param.resize_width
 
-def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label):
+def read_file(filename, outdir, resize=False):
     image_list = []
     label_list = []
     out_filename = filename.split('/')[-1].split('.')[0]
@@ -20,48 +21,24 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
         for name in f:
             name = name.strip()
             
-            if multi_label:
-                with open(name + label_suffix) as lf:
-                    seg_pos = [x.strip().split(' ') for x in lf]
+            with open(name + label_suffix) as lf:
+                label = lf.readline().strip()
 
-                image = Image.open(name + image_suffix)
-                image = image.convert('L')
-                if resize:
-                    original_image_width = image.size[0]
-                    original_image_height = image.size[1]
-                    dims = (int(round(float(newsize) * original_image_width / original_image_height)), newsize)
-                    image = image.resize(dims)
-                    seg_pos_resize = [[int(round(float(x[0]) * newsize / original_image_height)), int(x[1])] for x in seg_pos]
-                    seg_pos = seg_pos_resize
+            image = cv.imread(name + image_suffix, cv.CV_LOAD_IMAGE_GRAYSCALE)
+            image = 255 - image
 
-                # make label
-                label = [0] * image.size[0] # width = image.size[0]
-                for item in seg_pos:
-                    label[min(item[0], image.size[0] - 1)] = item[1]
-            else:
-                with open(name + label_suffix) as lf:
-                    seg_pos = [float(x.strip()) for x in lf]
+            if resize:
+                original_height = image.shape[0]
+                original_width = image.shape[1]
+                affine_dst = np.array([[0,0],[resize_width-1,0],[resize_width-1,resize_height-1],], dtype=np.float32)
+                affine_src = np.array([[0,0],[original_width-1,0],[original_width-1,original_height-1]], dtype=np.float32)
 
-                image = Image.open(name + image_suffix)
-                image = image.convert('L')
-                if resize:
-                    original_image_width = image.size[0]
-                    original_image_height = image.size[1]
-                    dims = (int(round(newsize * original_image_width / original_image_height)), newsize)
-                    image = image.resize(dims)
-                    seg_pos_resize = [int(round(x * newsize / original_image_height)) for x in seg_pos]
-                    seg_pos = seg_pos_resize
-
-                # make label
-                label = [0] * image.size[0] # width = image.size[0]
-                for pos in seg_pos:
-                    label[pos] = 1
+                affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+                image = cv.warpAffine(image, affine_mat, dsize=(resize_width, resize_height))
 
             label_list.append(label)
-
             image = np.asarray(image, dtype=np.uint32)
             # change to black back ground
-            image = 255 - image
             image_list.append(image)
 
     image_outfile = os.path.join(outdir, out_filename + '_image.p')
@@ -131,11 +108,10 @@ def get_readfile(readfile_dir):
     return file_list
 
 def bundle_data(file_list, outdir):
-    n_height = param.height
     is_resize = param.resize
 
     for f in file_list:
-        read_file(f, outdir, resize=is_resize, newsize=n_height)
+        read_file(f, outdir, resize=is_resize)
 
 def movefile(src_dir, dst_dir):
     assert os.path.exists(src_dir)
@@ -154,10 +130,10 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_random_with_multi_label']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_random_with_multi_label'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_random_with_multi_label'
-    has_readfile = True
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single_trainfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single_traindata'
+    has_readfile = False
     has_subfolder = False
     
     if not os.path.exists(data_outdir):
