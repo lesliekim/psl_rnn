@@ -20,33 +20,16 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
         for name in f:
             name = name.strip()
             
-            if multi_label:
-                with open(name + label_suffix) as lf:
-                    seg_pos = [x.strip().split(' ') for x in lf]
+            image = Image.open(name + image_suffix)
+            image = image.convert('L')
+            original_image_width = image.size[0]
+            original_image_height = image.size[1]
 
-                image = Image.open(name + image_suffix)
-                image = image.convert('L')
-                if resize:
-                    original_image_width = image.size[0]
-                    original_image_height = image.size[1]
-                    dims = (int(round(float(newsize) * original_image_width / original_image_height)), newsize)
-                    image = image.resize(dims)
-                    seg_pos_resize = [[int(round(float(x[0]) * newsize / original_image_height)), int(x[1])] for x in seg_pos]
-                    seg_pos = seg_pos_resize
-
-                # make label
-                label = [0] * image.size[0] # width = image.size[0]
-                for item in seg_pos:
-                    label[min(item[0], image.size[0] - 1)] = item[1]
-            else:
+            if not multi_label:
                 with open(name + label_suffix) as lf:
                     seg_pos = [float(x.strip()) for x in lf]
 
-                image = Image.open(name + image_suffix)
-                image = image.convert('L')
                 if resize:
-                    original_image_width = image.size[0]
-                    original_image_height = image.size[1]
                     dims = (int(round(newsize * original_image_width / original_image_height)), newsize)
                     image = image.resize(dims)
                     seg_pos_resize = [int(round(x * newsize / original_image_height)) for x in seg_pos]
@@ -55,7 +38,48 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
                 # make label
                 label = [0] * image.size[0] # width = image.size[0]
                 for pos in seg_pos:
-                    label[pos] = 1
+                    label[pos - 1] = 1
+
+            elif multi_label == 1:
+                with open(name + label_suffix) as lf:
+                    seg_pos = [x.strip().split(' ') for x in lf]
+
+                if resize:
+                    dims = (int(round(float(newsize) * original_image_width / original_image_height)), newsize)
+                    image = image.resize(dims)
+                    seg_pos_resize = [[int(round(float(newsize) * int(x[0]) / original_image_height)), int(x[1])] for x in seg_pos]
+                    seg_pos = seg_pos_resize
+
+                # make label
+                label = [0] * image.size[0] # width = image.size[0]
+                for item in seg_pos:
+                    label[min(item[0] - 1, image.size[0] - 1)] = item[1]
+
+            else:
+                with open(name + label_suffix) as lf:
+                    seg_pos = [x.strip().split(' ') for x in lf]
+
+                if resize:
+                    dims = (int(round(float(newsize) * original_image_width / original_image_height)), newsize)
+                    image = image.resize(dims)
+                    seg_pos_resize = [[int(round(float(newsize) * int(x[0]) / original_image_height)), int(x[1])] for x in seg_pos]
+                    seg_pos = seg_pos_resize
+
+                # make label
+                label = [0] * image.size[0]
+                seg_pos_len = len(seg_pos)
+                pos_count = 0
+                while pos_count < seg_pos_len:
+                    if seg_pos[pos_count][1] == 2:
+                        left = seg_pos[pos_count][0] - 1
+                        right = (seg_pos[pos_count+1][0] - 1) if pos_count < seg_pos_len-1 else (image.size[0]-1)
+                        label[left:right+1] = [2] * (right + 1 - left)
+                        pos_count += 1
+                    pos_count += 1
+                if len(label) > image.size[0]:
+                    print "long " + name
+                    print len(label)
+                    print image.size
 
             label_list.append(label)
 
@@ -154,10 +178,10 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_random_with_multi_label']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_random_with_multi_label'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_random_with_multi_label'
-    has_readfile = True
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_for_space']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_for_space'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_for_space'
+    has_readfile = False
     has_subfolder = False
     
     if not os.path.exists(data_outdir):

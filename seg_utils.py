@@ -39,9 +39,10 @@ def sparse_array(sequences, width, on_value, off_value, dtype=np.int32):
     return indices
 
 def pad_array(sequences, width):
+    pad_value = param.pad_value
     indices = []
     for i,seq in enumerate(sequences):
-        ans = [0] * width
+        ans = [pad_value] * width
         ans[:len(seq)] = seq[:]
         indices.append(ans)
 
@@ -93,7 +94,7 @@ class Loader(object):
         for i in xrange(len(step_batch)):
             step_batch[i] = np.shape(x_batch_seq[i])[1]
 
-        max_width =int(math.ceil(np.max(step_batch)/8.0) * 8.0) # ensure image width is multiples of 8
+        max_width =int(np.ceil(np.max(step_batch)/8.0) * 8.0) # ensure image width is multiples of 8
         x_batch = np.zeros(shape=[len(step_batch), self.norm_height, max_width, 1])
         for i in xrange(len(step_batch)):
             x_batch[i,:, :step_batch[i], 0] = x_batch_seq[i]
