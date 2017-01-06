@@ -794,9 +794,9 @@ class SegCnnNet_1(object):
 
         num_classes = 3
         conv_output_channel = 64
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
+        conv_layer = [[5, 1, 32, 0, 0],[5, 1, conv_output_channel, 0, 0]]
         full_node_num = 128
-        total_pooling = 4 # two pooling layers with pooling size 2
+        total_pooling = 1 # two pooling layers with pooling size 2
         height_after_pooling = img_height / total_pooling
 
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)

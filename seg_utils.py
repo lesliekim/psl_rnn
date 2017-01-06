@@ -299,11 +299,85 @@ for i,img in enumerate(crop_image_list):
 # finish test crop image 
 
 '''
-Process SegNet_crop output and save results
+Process space segmentatoin and save results
+'''
+def process_space_segment(output_seq, pooling_size=1, fg=2, bg=0):
+    '''
+    dealing with space segmentation, which is a former step for
+    character segmentation
+
+    output_seq: 1-D array
+    return value: list[list], each item indicate a word's left side
+                    and right side
+    '''
+    N = len(output_seq)
+    
+    if N < 2:
+        return []
+
+    # find space segmentation position
+    word_pos = []
+    left = 0
+    right = 0
+
+    while right < N:
+        while left < N and output_seq[left] == fg:
+            left += 1
+
+        right = left
+        while right < N and output_seq[right] == bg:
+            right += 1
+        
+        if left != right:
+            word_pos.append([pooling_size * left, pooling_size * (right - 1)])
+
+        left = right
+
+    return word_pos
+
+def seg_image(word_pos, image, image_base_name, output_dir):
+    height, width = image.shape[:2]
+    image = image * 255.
+    top = 0  #y
+    bottom = height - 1
+
+    for i, item in enumerate(word_pos):
+        left = item[0]
+        right = item[1]
+        
+        w = int(right - left)
+        affine_dst = np.array([[0,0],[w,0],[w,bottom]], dtype=np.float32)
+        affine_src = np.array([[left,top],[right,top],[right,bottom]], dtype=np.float32)
+        affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+        word_image = cv.warpAffine(image, affine_mat, dsize=(w+1, height))
+        # save image
+        image_name = "{}_{}.bin.png".format(image_base_name, i)
+        cv.imwrite(os.path.join(output_dir, image_name), word_image)
+
+
+def word_segmentation(image_list, argmax_outputs, output_dir, batch_number, pooling_size):
+    '''
+    Process word segmentation
+
+    image_list: list, each item is a image mat
+    argmax_outputs: list, each item is an array
+    output_dir: word segmentation output direction
+    batch_number: int, batch size
+    pooling_size: int, total pooling size
+
+    return value: None
+    '''
+    for i, image in enumerate(image_list):
+        word_pos = process_space_segment(argmax_outputs[i], pooling_size=pooling_size)
+        seg_image(word_pos, image, 'batch_{}_line_{}'.format(batch_number, i), output_dir)
+        
+
+'''
+Process segmentatoin networks' output and save results
 '''
 def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
     '''
-    dealing with single output sequence
+    dealing with single output sequence 
 
     output_seq: 1-D array
     return value: 1-D array, segmentation position
