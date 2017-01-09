@@ -301,7 +301,7 @@ for i,img in enumerate(crop_image_list):
 '''
 Process space segmentatoin and save results
 '''
-def process_space_segment(output_seq, pooling_size=1, fg=2, bg=0):
+def process_space_segment(output_seq, pooling_size=1, fg=2, bg=0, min_width=0):
     '''
     dealing with space segmentation, which is a former step for
     character segmentation
@@ -328,18 +328,19 @@ def process_space_segment(output_seq, pooling_size=1, fg=2, bg=0):
         while right < N and output_seq[right] == bg:
             right += 1
         
-        if left != right:
+        if right - left > min_width:
             word_pos.append([pooling_size * left, pooling_size * (right - 1)])
 
         left = right
 
     return word_pos
 
-def seg_image(word_pos, image, image_base_name, output_dir):
+def seg_image(word_pos, image, image_normalize=1.0, is_save=False, image_base_name='', output_dir=''):
     height, width = image.shape[:2]
-    image = image * 255.
+    image = image * image_normalize
     top = 0  #y
     bottom = height - 1
+    words = []
 
     for i, item in enumerate(word_pos):
         left = item[0]
@@ -350,12 +351,17 @@ def seg_image(word_pos, image, image_base_name, output_dir):
         affine_src = np.array([[left,top],[right,top],[right,bottom]], dtype=np.float32)
         affine_mat = cv.getAffineTransform(affine_src, affine_dst)
         word_image = cv.warpAffine(image, affine_mat, dsize=(w+1, height))
-        # save image
-        image_name = "{}_{}.bin.png".format(image_base_name, i)
-        cv.imwrite(os.path.join(output_dir, image_name), word_image)
 
+        if is_save:
+            # save image
+            image_name = "{}_{}.bin.png".format(image_base_name, i)
+            cv.imwrite(os.path.join(output_dir, image_name), word_image)
+        else:
+            words.append(word_image)
+            
+    return words
 
-def word_segmentation(image_list, argmax_outputs, output_dir, batch_number, pooling_size):
+def word_segmentation(image_list, argmax_outputs, pooling_size, image_normalize=1.0, is_save=False,output_dir='', batch_number=0):
     '''
     Process word segmentation
 
@@ -367,11 +373,18 @@ def word_segmentation(image_list, argmax_outputs, output_dir, batch_number, pool
 
     return value: None
     '''
+    words = []
     for i, image in enumerate(image_list):
-        word_pos = process_space_segment(argmax_outputs[i], pooling_size=pooling_size)
-        seg_image(word_pos, image, 'batch_{}_line_{}'.format(batch_number, i), output_dir)
-        
+        word_pos = process_space_segment(argmax_outputs[i], pooling_size=pooling_size, min_width=2)
+        if is_save:
+            seg_image(word_pos, image, image_normalize=image_normalize,is_save=True,
+                image_base_name='batch_{}_line_{}'.format(batch_number, i), 
+                output_dir=output_dir)
+        else:
+            words += seg_image(word_pos, image, image_normalize=image_normalize,is_save=False)
 
+    return words
+        
 '''
 Process segmentatoin networks' output and save results
 '''
@@ -425,7 +438,7 @@ def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
 
     return seg_pos
 
-def crop_result_image(image, seg_pos, padding=255):
+def crop_result_image(image, seg_pos, padding=255, image_normalize=1.0):
     '''
     crop image refering to seg_pos, alse see seg_image() 
     function in utils.py
@@ -436,7 +449,7 @@ def crop_result_image(image, seg_pos, padding=255):
     return value: list, a list of cropped images
     '''
     height, width = image.shape[:2]
-    image = image * 255.
+    image = image * image_normalize
 
     # append right side
     seg_pos.append(width - 1)
@@ -459,7 +472,7 @@ def crop_result_image(image, seg_pos, padding=255):
 
     return crop_image_list
 
-def crop_and_save(image_list, argmax_outputs, output_dir, batch_number, pooling_size):
+def crop_and_save(image_list, argmax_outputs, pooling_size, image_normalize=1.0,is_save=False,output_dir='', batch_number=0):
     '''
     crop images and save cropped images
 
@@ -471,13 +484,19 @@ def crop_and_save(image_list, argmax_outputs, output_dir, batch_number, pooling_
 
     return value: None
     '''
+    ans = []
     for i, image in enumerate(image_list):
         seg_pos = process_cnn_segment(argmax_outputs[i], pooling_size=pooling_size)
-        crop_image_list = crop_result_image(image, seg_pos)
+        crop_image_list = crop_result_image(image, seg_pos, image_normalize=image_normalize)
         # save image
-        for j, crop_image in enumerate(crop_image_list):
-            name = "{}_{}_{}.bin.png".format(batch_number, i, j)
-            cv.imwrite(os.path.join(output_dir, name), crop_image)
+        if is_save:
+            for j, crop_image in enumerate(crop_image_list):
+                name = "{}_{}_{}.bin.png".format(batch_number, i, j)
+                cv.imwrite(os.path.join(output_dir, name), crop_image)
+        else:
+            ans.append(crop_image_list)
+
+    return ans
 
 '''
 add noise to image(numpy array):

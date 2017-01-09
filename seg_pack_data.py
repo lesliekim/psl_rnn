@@ -178,9 +178,9 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_for_space']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_for_space'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_for_space'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_for_space_3']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_for_space_3'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_for_space_3'
     has_readfile = False
     has_subfolder = False
     

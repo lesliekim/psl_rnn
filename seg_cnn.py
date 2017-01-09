@@ -1,6 +1,6 @@
 import seg_utils as utils
 import tensorflow as tf
-from model import SegCnnNet as Net
+from model import SegCnnNet_1 as Net
 import numpy as np
 import time
 import os
@@ -32,9 +32,9 @@ def LOG(Str):
 
 
 # Loading the data
-train_loader = utils.Loader('../psl_data/seg_cnn/traindata_random_with_multi_label',
-                            ['data_0','data_1','data_2','data_3'],batch_size)
-test_loader = utils.Loader('../psl_data/seg_cnn/traindata_random_with_multi_label',['data_3'],batch_size)
+train_loader = utils.Loader('../psl_data/seg_cnn/traindata_for_space_3',
+                            ['data_0'],batch_size)
+test_loader = utils.Loader('../psl_data/seg_cnn/traindata_for_space_3',['data_0'],batch_size)
 
 # train
 with tf.Graph().as_default():

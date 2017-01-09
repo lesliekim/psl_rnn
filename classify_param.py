@@ -4,4 +4,4 @@ resize=1
 label_suffix='.txt'
 image_suffix='.bin.png'
 file_size = 20000 #500
-num_classes = 129
+num_classes = 128

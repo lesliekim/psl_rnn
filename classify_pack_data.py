@@ -12,6 +12,30 @@ file_size = param.file_size
 resize_height = param.resize_height
 resize_width = param.resize_width
 
+def pad_to_square(image):
+    h = image.shape[0]
+    w = image.shape[1]
+    if h > w:
+        p_left = p_right = (h + 4 - w) / 2
+        p_top = p_bottom = 2
+    else:
+        p_left = p_right = 2
+        p_top = p_bottom = (w + 4 - h) / 2
+    image = cv.copyMakeBorder(image, p_top, p_bottom, p_left, p_right, 
+            borderType=cv.BORDER_CONSTANT, value=0)
+
+    if resize:
+        original_height = image.shape[0]
+        original_width = image.shape[1]
+        affine_dst = np.array([[0,0],[resize_width-1,0],[resize_width-1,resize_height-1],], dtype=np.float32)
+        affine_src = np.array([[0,0],[original_width-1,0],[original_width-1,original_height-1]], dtype=np.float32)
+
+        affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+        image = cv.warpAffine(image, affine_mat, dsize=(resize_width, resize_height))
+
+    image = np.asarray(image, dtype=np.uint32)
+    return image
+
 def read_file(filename, outdir, resize=False):
     image_list = []
     label_list = []
@@ -26,6 +50,18 @@ def read_file(filename, outdir, resize=False):
 
             image = cv.imread(name + image_suffix, cv.CV_LOAD_IMAGE_GRAYSCALE)
             image = 255 - image
+            
+            # pad to square
+            h = image.shape[0]
+            w = image.shape[1]
+            if h > w:
+                p_left = p_right = (h + 4 - w) / 2
+                p_top = p_bottom = 2
+            else:
+                p_left = p_right = 2
+                p_top = p_bottom = (w + 4 - h) / 2
+            image = cv.copyMakeBorder(image, p_top, p_bottom, p_left, p_right, 
+                    borderType=cv.BORDER_CONSTANT, value=0)
 
             if resize:
                 original_height = image.shape[0]
@@ -36,7 +72,7 @@ def read_file(filename, outdir, resize=False):
                 affine_mat = cv.getAffineTransform(affine_src, affine_dst)
                 image = cv.warpAffine(image, affine_mat, dsize=(resize_width, resize_height))
 
-            label_list.append(label)
+            label_list.append(int(label))
             image = np.asarray(image, dtype=np.uint32)
             # change to black back ground
             image_list.append(image)
@@ -130,9 +166,9 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single_trainfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/test_single_traindata'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_trainfile'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_traindata'
     has_readfile = False
     has_subfolder = False
     

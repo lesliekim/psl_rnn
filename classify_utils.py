@@ -29,7 +29,7 @@ def sparse_array(sequences):
     indices = np.zeros((len(sequences), classes), dtype=np.int64)
 
     for i,seq in enumerate(sequences):
-        indices[i][int(seq)] = 1
+        indices[i][seq] = 1
 
     return indices
 
@@ -91,3 +91,31 @@ class Loader(object):
         random.shuffle(compact)
         self.image, self.label = map(list, zip(*compact))
 
+'''
+process image
+'''
+resize_height = param.resize_height
+resize_width = param.resize_width
+
+def pad_to_square(image):
+    h = image.shape[0]
+    w = image.shape[1]
+    if h > w:
+        p_left = p_right = (h + 4 - w) / 2
+        p_top = p_bottom = 2
+    else:
+        p_left = p_right = 2
+        p_top = p_bottom = (w + 4 - h) / 2
+    image = cv.copyMakeBorder(image, p_top, p_bottom, p_left, p_right, 
+            borderType=cv.BORDER_CONSTANT, value=0)
+
+    original_height = image.shape[0]
+    original_width = image.shape[1]
+    affine_dst = np.array([[0,0],[resize_width-1,0],[resize_width-1,resize_height-1],], dtype=np.float32)
+    affine_src = np.array([[0,0],[original_width-1,0],[original_width-1,original_height-1]], dtype=np.float32)
+
+    affine_mat = cv.getAffineTransform(affine_src, affine_dst)
+    image = cv.warpAffine(image, affine_mat, dsize=(resize_width, resize_height))
+
+    image = np.asarray(image, dtype=np.uint32)
+    return image

@@ -32,16 +32,16 @@ def LOG(Str):
 
 
 # Loading the data
-train_loader = utils.Loader('../psl_data/classify_cnn/test_single_traindata',['data_0'],batch_size)
-test_loader = utils.Loader('../psl_data/classify_cnn/test_single_traindata',['data_0'],batch_size)
+train_loader = utils.Loader('../psl_data/classify_cnn/9font_4style_0destort_traindata',['data_0'],batch_size)
+test_loader = utils.Loader('../psl_data/classify_cnn/9font_4style_0destort_traindata',['data_0'],batch_size)
 
 # train
 with tf.Graph().as_default():
     sess = tf.Session()
-    model = Net(batch_size)
+    model = Net(is_test=False)
     saver = tf.train.Saver(max_to_keep=0)
     tf.get_variable_scope().reuse_variables()
-    evaluation = Net(batch_size, is_test=True)
+    evaluation = Net(is_test=True)
     init = tf.initialize_all_variables()
     sess.run(init)
 

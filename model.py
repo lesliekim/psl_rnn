@@ -400,13 +400,15 @@ class SegCnnNet(object):
         [batch_size, image_height, padded_image_width, channel]channel = 1
     Train and Test targets: Not one-hot format, [batch_size, padded_image_width]
     '''
-    def __init__(self, batch_size, is_test=False):
+    #def __init__(self, batch_size, is_test=False):
+    def __init__(self, is_test=False):
         img_height = seg_height
 
         self.inputs = tf.placeholder(tf.float32, shape=[None, img_height, None, 1], name="inputs")
         inputs = self.inputs
         self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
         targets = self.targets
+        batch_size = tf.shape(self.inputs)[0]
 
         conv_output_channel = 64
         conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
@@ -770,7 +772,7 @@ class SegBiRnnModel(object):
         self.saver = tf.train.Saver(max_to_keep=0)
 
 
-class SegCnnNet_1(object):
+class SegCnnNet_space(object):
     '''
     Convolutional Nerual Network for character segmentation 
     The only difference with SegCnnNet is that this network support multi-label,
@@ -839,15 +841,11 @@ class SegCnnNet_1(object):
                     on_value=1, off_value=0, axis=-1, dtype=tf.int32)
             #targets = tf.cast(pool, dtype=tf.int64)
 
-        # loss
-        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
-
         if not is_test:
+            # loss
+            self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
             # optimizer
-            #self.optimizer = tf.train.MomentumOptimizer(1e-4, 0.9).minimize(self.loss)
             self.optimizer = tf.train.AdamOptimizer(1e-4).minimize(self.loss)
-            #self.optimizer = tf.train.GradientDescentOptimizer(1e-5).minimize(self.loss)
-            #self.optimizer = tf.train.AdadeltaOptimizer(1e-4).minimize(self.loss)
         
         y_softmax = tf.nn.softmax(y_conv, dim=-1)
         self.softmax_outputs = y_softmax
@@ -863,7 +861,7 @@ Models for classification
 '''
 
 class ClassifyCnnNet(object):
-    def __init__(self, batch_size, is_test=False):
+    def __init__(self, is_test=False):
         height = classify_param.resize_height
         width = classify_param.resize_width
         num_classes = classify_param.num_classes
@@ -872,6 +870,7 @@ class ClassifyCnnNet(object):
         inputs = self.inputs
         self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
         targets = self.targets
+        batch_size = tf.shape(self.inputs)[0]
 
         conv_output_channel = 64
         conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
