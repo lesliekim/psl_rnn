@@ -616,3 +616,47 @@ forecast_seq = [[random.uniform(0,1) for i in xrange(20)],
 total_roc = ROC(truth_seq, forecast_seq)
 print total_roc
 '''
+
+'''
+Threshold max
+'''
+def thrmax(y, thr=0.5):
+    '''
+    y: (batch_size, length, 2)
+    outputs: (batch_size, length)
+    '''
+    batch_size, length, _ = np.asarray(y).shape
+    outputs = np.zeros([batch_size, length], dtype=np.int)
+    for i in xrange(batch_size):
+        tail = length
+        for k in xrange(length-1, -1, -1):
+            if y[i][k][1] == 0.5:
+                tail = k + 1
+        for j in xrange(tail):
+            if y[i][j][1] > thr:
+                outputs[i][j] = 1
+    return outputs
+
+def over_and_under_rate(softmax_outputs, targets, pooling_size=1):
+    '''
+    Caculate over segmentation / under segmentation rate
+    softmax_outputs: [(batch_size, length1, 2), (batch_size, length2, 2), ...]
+    targets: [(batch_size, length1, 2), (batch_size, length2, 2), ...]
+    outputs:
+    '''
+    over_num = 0
+    under_num = 0
+    for i,softmax_output in enumerate(softmax_outputs):
+        thr_y = thrmax(softmax_output, 0.3)
+        for j, seq in enumerate(thr_y):
+            print "RES: ", seq
+            print "TRU: ", targets[i][j]
+            for k in xrange(len(seq)):
+                if seq[k] == 1 and targets[i][j][k] == 0:
+                    over_num += 1
+                if seq[k] == 0 and targets[i][j][k] == 1:
+                    under_num += 1
+    print over_num, under_num
+
+
+
