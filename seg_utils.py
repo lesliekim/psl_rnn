@@ -7,6 +7,7 @@ import seg_param as param
 import cv2 as cv
 
 norm_height = param.height
+pad_value = param.pad_value
 
 '''
 Data Loader
@@ -403,10 +404,9 @@ def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
 
     seg_pos = []
     # removing right side noise
-    right = N - 1
-    count = right
+    count = N - 1
 
-    while count >= 0 and output_seq[count] == fg:
+    while count >= 0 and output_seq[count] == pad_value:
         count -= 1
     right = count
 
@@ -435,7 +435,7 @@ def process_cnn_segment(output_seq, pooling_size=1, fg=1, bg=0):
                 count += 1
             else:
                 count += 1
-
+    seg_pos.append(pooling_size * right)
     return seg_pos
 
 def crop_result_image(image, seg_pos, padding=255, image_normalize=1.0):
@@ -472,12 +472,22 @@ def crop_result_image(image, seg_pos, padding=255, image_normalize=1.0):
 
     return crop_image_list
 
-def crop_and_save(image_list, argmax_outputs, pooling_size, image_normalize=1.0,is_save=False,output_dir='', batch_number=0):
+def draw_seg_pos(seg_pos, img, img_name, line_color=(0,0,255), image_normalize=1.0):
+    height, width = img.shape[:2]
+    img = img * image_normalize
+
+    img = cv.cvtColor(np.cast['uint8'](img), cv.COLOR_GRAY2BGR)
+    for pos in seg_pos:
+        cv.line(img, (pos, 0), (pos, height - 1), line_color)
+    
+    cv.imwrite(img_name, img)
+
+def crop_and_save(image_list, outputs, pooling_size, image_normalize=1.0,is_save=False,output_dir='',batch_number=0,is_thrmax=False,thr=0.0):
     '''
     crop images and save cropped images
 
     image_list: list, each item is a image mat
-    argmax_outputs: list, each item is an array whose width is 
+    outputs: list, each item is an array whose width is 
                 the same as image's width
     output_dir: cropped images output direction
     batch_number: int
@@ -485,14 +495,26 @@ def crop_and_save(image_list, argmax_outputs, pooling_size, image_normalize=1.0,
     return value: None
     '''
     ans = []
+    
+    if is_thrmax:
+        argmax_outputs = thrmax(outputs, thr)
+    else:
+        argmax_outputs = outputs
+
     for i, image in enumerate(image_list):
         seg_pos = process_cnn_segment(argmax_outputs[i], pooling_size=pooling_size)
-        crop_image_list = crop_result_image(image, seg_pos, image_normalize=image_normalize)
+        #crop_image_list = crop_result_image(image, seg_pos, image_normalize=image_normalize)
         # save image
         if is_save:
+            '''
             for j, crop_image in enumerate(crop_image_list):
                 name = "{}_{}_{}.bin.png".format(batch_number, i, j)
                 cv.imwrite(os.path.join(output_dir, name), crop_image)
+            '''
+            name = os.path.join(output_dir, "{}_{}.bin.png".format(batch_number, i))
+            draw_seg_pos(seg_pos, image, name, image_normalize=image_normalize)
+
+
         else:
             ans.append(crop_image_list)
 
@@ -593,9 +615,16 @@ def ROC(truth_seqs, forecast_seqs, neighborhood=4):
     truth_line_number = 0
     for i, patch in enumerate(truth_seqs):
         for j, truth_seq in enumerate(patch):
-            truth_line_number += truth_seq.count(1)
+            # move tail padding
+            tail = len(truth_seq)
+            while tail and truth_seq[tail - 1] == pad_value:
+                tail -= 1
+            truth_seq_pr = truth_seq[:tail]
+            forecast_seq_pr = forecast_seqs[i][j][:tail]
+
+            truth_line_number += truth_seq_pr.count(1)
             batch_match_seq, batch_match_line_number = \
-                    match(truth_seq, forecast_seqs[i][j], neighborhood)
+                    match(truth_seq_pr, forecast_seq_pr, neighborhood)
 
             match_seq += batch_match_seq
             match_line_number += batch_match_line_number
@@ -629,13 +658,33 @@ def thrmax(y, thr=0.5):
     outputs = np.zeros([batch_size, length], dtype=np.int)
     for i in xrange(batch_size):
         tail = length
+        '''
         for k in xrange(length-1, -1, -1):
             if y[i][k][1] == 0.5:
                 tail = k + 1
+            else:
+                break
+        '''
         for j in xrange(tail):
             if y[i][j][1] > thr:
                 outputs[i][j] = 1
     return outputs
+
+def unpool(seq, pooling_size=1):
+    '''
+    seq: 1-D binary array
+    '''
+    outputs = [0] * (len(seq) * pooling_size)
+    for i,item in enumerate(seq):
+        if item == 1:
+            outputs[i * pooling_size] = 1
+    return outputs
+
+def pad_tail(pad_seq, target):
+    tail = min(len(pad_seq), len(target))
+    while tail and target[tail - 1] == pad_value:
+        tail -= 1
+    return tail
 
 def over_and_under_rate(softmax_outputs, targets, pooling_size=1):
     '''
@@ -644,19 +693,46 @@ def over_and_under_rate(softmax_outputs, targets, pooling_size=1):
     targets: [(batch_size, length1, 2), (batch_size, length2, 2), ...]
     outputs:
     '''
-    over_num = 0
-    under_num = 0
-    for i,softmax_output in enumerate(softmax_outputs):
-        thr_y = thrmax(softmax_output, 0.3)
-        for j, seq in enumerate(thr_y):
-            print "RES: ", seq
-            print "TRU: ", targets[i][j]
-            for k in xrange(len(seq)):
-                if seq[k] == 1 and targets[i][j][k] == 0:
-                    over_num += 1
-                if seq[k] == 0 and targets[i][j][k] == 1:
-                    under_num += 1
-    print over_num, under_num
+    step = 0.01
+    step_num = int(1 / step) - 1
+    over_num = [0] * step_num
+    under_num = [0] * step_num
+    correct_num = [0] * step_num
+    for sn in xrange(step_num):
+        total_correct = 0
+        thr = (sn + 1) * 0.01
+        for i,softmax_output in enumerate(softmax_outputs):
+            thr_y = thrmax(softmax_output, thr)
+            for j, seq in enumerate(thr_y):
+                pad_seq = seq
+                tail = pad_tail(pad_seq, targets[i][j])
+                for k in xrange(tail):
+                    if pad_seq[k] == 1 and targets[i][j][k] == 0:
+                        over_num[sn] += 1
+                    if pad_seq[k] == 0 and targets[i][j][k] == 1:
+                        under_num[sn] += 1
+                    if pad_seq[k] == 1 and targets[i][j][k] == 1:
+                        correct_num[sn] += 1
+                    if targets[i][j][k] == 1:
+                        total_correct += 1
+
+    t = [over_num[i] + under_num[i] for i in xrange(step_num)]#over_num, under_num
+    r = [float(over_num[i]) /  under_num[i] for i in xrange(step_num)]#over_num, under_num
+    print over_num[0], under_num[0], min(t)
+    print total_correct
+    with open('/home/jia/psl/tf_rnn/psl_rnn/over_under.csv','w') as wf:
+        for i in xrange(step_num):
+            wf.write(str(over_num[i]))
+            wf.write(',')
+            wf.write(str(under_num[i]))
+            wf.write(',')
+            wf.write(str(correct_num[i]))
+            wf.write(',')
+            wf.write(str(t[i]))
+            wf.write(',')
+            wf.write(str(r[i]))
+            wf.write(',\n')
+
 
 
 

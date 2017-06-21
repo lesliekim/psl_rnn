@@ -12,10 +12,10 @@ from model import SegCnnNet, SegCnnNet_space, ClassifyCnnNet
 # Test configs
 segCnnNet_space_model_dir = "./cnn_model/segCnnNet_1_pad2_train2"
 segCnnNet_space_model_epoch = 10
-segCnnNet_model_dir = "./cnn_model/segCnnNet_total_random"
-segCnnNet_model_epoch = 10
-classifyCnnNet_model_dir = "./classify_cnn_model/base_net"
-classifyCnnNet_model_epoch = 10
+segCnnNet_model_dir = "./cnn_model/segCnnNet_2conv_32_64_full_144_total_random"
+segCnnNet_model_epoch = 20
+classifyCnnNet_model_dir = "./classify_cnn_model/base_net_1"
+classifyCnnNet_model_epoch = 50
 
 # Loading the data
 batch_size = 1

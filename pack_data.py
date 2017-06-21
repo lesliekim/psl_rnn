@@ -15,7 +15,7 @@ def read_file(filename, datadir, outdir, resize=False, newsize=1):
     out_filename = filename.split('/')[-1]
     out_filename = out_filename.split('.')[0]
 
-    threshold = 90 # throw away too long data(trick, hehe)
+    threshold = 95 # throw away too long data(trick, hehe)
     num_classes = 128 # how many labels
 
     with open(filename,'r') as f:
@@ -111,6 +111,7 @@ def make_readfile(datadir, outputdir, has_subfolder=False):
             cnt = 0
     if not f.closed:
         f.close()
+    readfile_count += 1
     return file_list
 
 def get_readfile(readfile_dir):
@@ -139,14 +140,15 @@ def movefile(src_dir, dst_dir):
             dst_file = os.path.join(dst_path, f)
             shutil.copyfile(src_file, dst_file)
 
-#movefile('/home/jia/psl/tf_rnn/psl_data/gulliver_groundtruth','/home/jia/psl/tf_rnn/psl_data/gulliver_out')
-
+#movefile('/home/jia/psl/tf_rnn/psl_data/father/father_groundtruth','/home/jia/psl/tf_rnn/psl_data/father/father_destorted')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary'] 
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary_trainfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/English_card_hard/namecard_binary_traindata'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/English_card_hard/synthesis_English_card_hard',
+               '/home/jia/psl/tf_rnn/psl_data/244Images_correct_uppercase_destorted', 
+                '/home/jia/psl/tf_rnn/psl_data/gulliver/gulliver_destorted'] 
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/trainfile_12'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/traindata_12'
     has_readfile = False
-    has_subfolder = False # if datadir has subfolders and images are in different subfolders, 
+    has_subfolder = True # if datadir has subfolders and images are in different subfolders, 
                             # set this variable to be True
     
     if not os.path.exists(data_outdir):

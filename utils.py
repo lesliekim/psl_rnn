@@ -78,6 +78,9 @@ class Loader(object):
         x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch), self.norm_height, 1])
         for i in xrange(len(step_batch)):
             x_batch[i, :step_batch[i], :, 0] = np.transpose(x_batch_seq[i][np.newaxis, :, :], (0, 2, 1))
+        
+        #x_batch = np.zeros(shape=[len(step_batch), np.max(step_batch)])
+
 
         # Creating sparse representation to feed the placeholder
         y_batch = sparse_tuple_from(y_batch_seq)
@@ -213,3 +216,4 @@ def reduce_length(array, times):
         begin = end
         end = min(end + 4, N)
     return ans
+

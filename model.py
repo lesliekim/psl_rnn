@@ -20,8 +20,9 @@ class CnnRnnModel(object):
         image_height = height #48
         # Accounting the 0th indice + blank label = 121 characters
         num_classes = 128 #121
-        num_hidden_1 = 50
-        num_hidden_2 = 100
+        num_hidden_1 = 64 #50
+        num_hidden_2 = 128 #100
+        num_hidden_3 = 256 #200
 
         # Placeholders
         self.inputs = tf.placeholder(tf.float32, [None, None, image_height, 1], name="inputs")
@@ -34,9 +35,13 @@ class CnnRnnModel(object):
         shape = tf.shape(self.inputs)
         batch_s, max_timesteps = shape[0], shape[1]
         inputs = (self.inputs - 0.1) / 0.3
-        ksize_conv1 = 5
+        ksize_conv1 = 5 
         stride_conv1 = 2
         channel_conv1 = 16
+        
+        ksize_conv2 = 3
+        stride_conv2 = 2
+        channel_conv2 = 16
 
         W_conv1 = tf.Variable(tf.truncated_normal([ksize_conv1, ksize_conv1, 1, channel_conv1], stddev=0.2))
         b_conv1 = tf.Variable(tf.truncated_normal([channel_conv1], mean=0, stddev=0))
@@ -47,6 +52,36 @@ class CnnRnnModel(object):
         num_features = (((image_height - 1) / stride_conv1 + 1 + 1) / 2) * channel_conv1
 
         h_pool1 = tf.reshape(h_pool1, [batch_s, -1, num_features])
+        
+        '''
+        w_conv1 = tf.Variable(tf.truncated_normal([ksize_conv2, ksize_conv2, 1, channel_conv1], stddev=0.2))
+        b_conv1 = tf.Variable(tf.truncated_normal([channel_conv1], mean=0, stddev=0))
+        y_conv1 = tf.nn.conv2d(inputs, w_conv1, strides=[1, 1, 1, 1], padding='SAME')
+        h_conv1 = tf.nn.relu(y_conv1 + b_conv1)
+
+        w_conv2 = tf.Variable(tf.truncated_normal([ksize_conv2, ksize_conv2, channel_conv1, channel_conv2], stddev=0.2))
+        b_conv2 = tf.Variable(tf.truncated_normal([channel_conv2], mean=0, stddev=0))
+        y_conv2 = tf.nn.conv2d(h_conv1, w_conv2, strides=[1, stride_conv2, stride_conv2, 1], padding='SAME')
+        h_conv2 = tf.nn.relu(y_conv2 + b_conv2)
+        h_pool2 = tf.nn.max_pool(h_conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+
+        seq_len = ((self.seq_len - 1) / 1 + 2) / 2
+        seq_len = ((seq_len - 1) / stride_conv2 + 2) / 2
+        num_features = (((image_height - 1) / 1 + 2) / 2)
+        num_features = (((num_features - 1) / stride_conv2 + 2) / 2) * channel_conv2
+
+        h_pool1 = tf.reshape(h_pool2, [batch_s, -1, num_features])
+        '''
+        # try mulit_row
+        nw = tf.shape(h_pool1)[1]
+        patch_size = 2
+        zero_col = tf.zeros([batch_s, patch_size, num_features], dtype=tf.float32)
+        pad_feat = tf.concat(1, [zero_col, h_pool1, zero_col])
+        left_feat = tf.slice(pad_feat, [0,patch_size,0], [-1, nw, -1])
+        right_feat = tf.slice(pad_feat, [0,0,0], [-1, nw, -1])
+        results = tf.concat(1, [right_feat, h_pool1, left_feat])
+
+        h_pool1 = results
 
         # RNN layer
         additional_cell_args = {}
@@ -72,6 +107,8 @@ class CnnRnnModel(object):
         rnn_bw_1 = cell_fn(num_hidden_1, **additional_cell_args)
         rnn_fw_2 = cell_fn(num_hidden_2, **additional_cell_args)
         rnn_bw_2 = cell_fn(num_hidden_2, **additional_cell_args)
+        rnn_fw_3 = cell_fn(num_hidden_3, **additional_cell_args)
+        rnn_bw_3 = cell_fn(num_hidden_3, **additional_cell_args)
 
         with tf.variable_scope('layer1'):
             outputs_1, _ = tf.nn.bidirectional_dynamic_rnn(
@@ -83,12 +120,22 @@ class CnnRnnModel(object):
                 rnn_fw_2, rnn_bw_2, outputs_1, seq_len,
                 dtype=tf.float32, parallel_iterations=batch_size)
             outputs = tf.concat(2, outputs_2)
+            #outputs_2 = tf.concat(2, outputs_2)
+        '''
+        with tf.variable_scope('layer3'):
+            outputs_3, _ = tf.nn.bidirectional_dynamic_rnn(
+                rnn_fw_3, rnn_bw_3, outputs_2, seq_len,
+                dtype=tf.float32, parallel_iterations=batch_size)
+            outputs = tf.concat(2, outputs_3)
+        '''
 
         # Reshaping to apply the same weights over the timesteps
         outputs = tf.reshape(outputs, [-1, num_hidden_2 * 2])  # bi_directional
+        #outputs = tf.reshape(outputs, [-1, num_hidden_3 * 2])  # bi_directional
 
         # Truncated normal with mean 0 and stdev=0.1
         W = tf.Variable(tf.truncated_normal([num_hidden_2 * 2, num_classes], stddev=0.01))
+        #W = tf.Variable(tf.truncated_normal([num_hidden_3 * 2, num_classes], stddev=0.01))
         b = tf.Variable(tf.constant(0., shape=[num_classes]))
 
         # Doing the affine projection
@@ -137,6 +184,9 @@ class BiRnnModel(object):
         # TODO(rabbit): modity the normalization
         inputs = (inputs - 0.1) / 0.3
 
+        shape = tf.shape(self.inputs)
+        batch_s, max_timesteps = shape[0], shape[1]
+
         # Here we use sparse_placeholder that will generate a
         # SparseTensor required by ctc_loss op.
         self.targets = tf.sparse_placeholder(tf.int32, name="targets")
@@ -182,6 +232,15 @@ class BiRnnModel(object):
 
         # The second output is the last state and we will no use that
         # outputs, state = tf.nn.rnn(cell, inputs, dtype=tf.float32)
+        nw = tf.shape(inputs)[1]
+        patch_size = 3
+        zero_col = tf.zeros([batch_s, patch_size, image_height], dtype=tf.float32)
+        pad_feat = tf.concat(1, [zero_col, inputs, zero_col])
+        left_feat = tf.slice(pad_feat, [0,patch_size,0], [-1, nw, -1])
+        right_feat = tf.slice(pad_feat, [0,0,0], [-1, nw, -1])
+        results = tf.concat(1, [right_feat, inputs, left_feat])
+
+        inputs = results
 
         with tf.variable_scope('layer1'):
             outputs_1, _ = tf.nn.bidirectional_dynamic_rnn(rnn_fw_1, rnn_bw_1, inputs, self.seq_len,
@@ -388,6 +447,7 @@ class SegNet(object):
             targets = tf.cast(pool, dtype=tf.int64)
     '''
 
+
 class SegCnnNet(object):
     '''
     Convolutional Nerual Network for character segmentation
@@ -408,13 +468,15 @@ class SegCnnNet(object):
         inputs = self.inputs
         self.targets = tf.placeholder(tf.int64, shape=[None, None], name="targets")
         targets = self.targets
+        self.features = tf.placeholder(tf.float32, shape=[None, 1, None, 1], name="features")
+        features = self.features
         batch_size = tf.shape(self.inputs)[0]
 
         conv_output_channel = 64
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
-        full_node_num = 128
-        total_pooling = 4 # two pooling layers with pooling size 2
-        height_after_pooling = img_height / total_pooling
+        conv_layer = [[5, 1, 32, 0, 0],[5, 1, conv_output_channel, 0, 0]]
+        full_node_num = 144
+        total_pooling = 1 # two pooling layers with pooling size 2
+        height_after_pooling = img_height / total_pooling + 1 #+1 is for add feature to deep_conv
 
         # current best work
         #conv_output_channel = 64
@@ -422,8 +484,18 @@ class SegCnnNet(object):
         #conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]] 
 
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
-
+        self.deep_conv = deep_conv
         
+        conv_max = tf.reduce_max(deep_conv) * 1.2
+        conv_min = tf.reduce_min(deep_conv)
+        # rescale features
+        r_features = tf.map_fn(lambda item: (item * conv_max + conv_min), features)
+        # concat features
+        r_features = tf.tile(tf.reshape(r_features, [batch_size, 1, -1, 1]), [1,1,1,conv_output_channel])
+        deep_conv = tf.concat(1, [r_features, deep_conv])
+        self.deep_conv_add = deep_conv
+        
+
         with tf.variable_scope("full"):
             w_f_test = tf.get_variable('weights',
                 initializer=tf.truncated_normal(\
@@ -436,7 +508,17 @@ class SegCnnNet(object):
             h_f_test = tf.nn.conv2d(deep_conv, w_f_test,
                     strides=[1, height_after_pooling, 1, 1], padding="SAME")
             h_conv = tf.nn.relu(tf.nn.bias_add(h_f_test, b_f_test))
-
+            self.h_conv = h_conv
+            ''' 
+            conv_max = tf.reduce_max(h_conv)
+            conv_min = tf.reduce_min(h_conv)
+            # rescale features
+            r_features = tf.map_fn(lambda item: (item * conv_max + conv_min), features)
+            # concat features
+            r_features = tf.tile(tf.reshape(r_features, [batch_size, 1, -1, 1]), [1,1,1,full_node_num])
+            h_conv = h_conv + r_features
+            self.h_conv_add = h_conv
+            '''
         with tf.variable_scope("readout"):
             w_r_test = tf.get_variable('weights',
                 initializer=tf.truncated_normal([1, 1, full_node_num,2], stddev=0.01))
@@ -448,8 +530,25 @@ class SegCnnNet(object):
                     strides=[1, 1, 1, 1], padding='SAME')
             y_conv = tf.nn.relu(tf.nn.bias_add(h_r_test, b_r_test))
             y_conv = tf.reshape(y_conv, [batch_size, -1, 2])
+        
+        ''' # deconv: jie juan ji
+        with tf.variable_scope("deconv"):
+            y_conv = tf.reshape(y_conv, [batch_size, tf.shape(y_conv)[1], 2, 1])
+            output_shape = [batch_size, tf.shape(targets)[1], 2, 1]
+            kernel = tf.random_normal(shape=[5,2,1,1]) # try kernel = tf.constant(0.1, shape=[2,5,1,1]) as well
+            strides = [1,4,1,1]
+            y_deconv = tf.nn.conv2d_transpose(y_conv, kernel, output_shape=output_shape,
+                        strides=strides,padding='SAME')
+            self.y_deconv = y_deconv
 
-
+            y_deconv = tf.reshape(y_deconv, [batch_size, -1, 2])
+            self.y_deconv = y_deconv
+        '''
+        
+        targets = tf.one_hot(tf.reshape(targets, [batch_size, -1]), depth=2, 
+                on_value=1, off_value=0, axis=-1, dtype=tf.int32)
+        
+        '''
         with tf.variable_scope("label_pool"):
             target_pool = tf.cast(tf.reshape(targets, [batch_size, -1, 1, 1]), tf.float32)
             pool_height = total_pooling
@@ -460,6 +559,7 @@ class SegCnnNet(object):
             targets = tf.one_hot(tf.reshape(pool, [batch_size, -1]), depth=2, 
                     on_value=1, off_value=0, axis=-1, dtype=tf.int32)
             #targets = tf.cast(pool, dtype=tf.int64)
+        '''
 
         # loss
         self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_conv, targets))
@@ -501,8 +601,9 @@ class SegRnnNet(object):
         self.targets = tf.placeholder(tf.int64, shape=[None, None, 2], name="targets")
         targets = self.targets
 
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, 64, 2, 2]]
-
+        conv_layer = [[5, 1, 16, 2, 2]]
+        total_pool = 2.0
+        height_after_pooling = img_height / total_pool
         deep_conv = DeepConv(conv_layer).deep_conv_layers(1, inputs)
         
         with tf.variable_scope("rnn_layer"):
@@ -872,9 +973,9 @@ class ClassifyCnnNet(object):
         targets = self.targets
         batch_size = tf.shape(self.inputs)[0]
 
-        conv_output_channel = 64
-        conv_layer = [[5, 1, 32, 2, 2],[5, 1, conv_output_channel, 2, 2]]
-        full_node_num = 128
+        conv_output_channel = 256
+        conv_layer = [[5, 2, 32, 64, 2, 2],[5, 2, 128,conv_output_channel, 2, 2]]
+        full_node_num = 1024
         total_pooling = 4 # two pooling layers with pooling size 2
         height_after_pooling = height / total_pooling
 
@@ -891,6 +992,12 @@ class ClassifyCnnNet(object):
                     initializer=tf.truncated_normal([full_node_num], stddev=0.01))
 
             h_fc1 = tf.nn.relu(tf.matmul(deep_conv_flat, w_f_test) + b_f_test)
+
+        if not is_test:
+            with tf.variable_scope("dropout"):
+                keep_prob = 0.5
+                h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+                h_fc1 = h_fc1_drop
 
         with tf.variable_scope("readout"):
             w_r_test = tf.get_variable('weights',

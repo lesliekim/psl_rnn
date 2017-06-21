@@ -6,7 +6,7 @@ import time
 import os
 
 # Training configs
-num_epochs = 20
+num_epochs = 50
 batch_size = 32 # image width are not same, so batch size can only be "1"
 save_step = 100
 trainID = "{}_{}".format(time.strftime("%Y-%m-%d_%H:%M:%S", time.localtime()), str(os.getpid()))
@@ -32,7 +32,7 @@ def LOG(Str):
 
 
 # Loading the data
-train_loader = utils.Loader('../psl_data/classify_cnn/9font_4style_0destort_traindata',['data_0'],batch_size)
+train_loader = utils.Loader('../psl_data/classify_cnn/9font_4style_0destort_traindata_2&3&4&7',['data_0','data_1','data_2','data_3'],batch_size)
 test_loader = utils.Loader('../psl_data/classify_cnn/9font_4style_0destort_traindata',['data_0'],batch_size)
 
 # train

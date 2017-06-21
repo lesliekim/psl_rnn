@@ -25,12 +25,13 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
             original_image_width = image.size[0]
             original_image_height = image.size[1]
 
-            if not multi_label:
+            if multi_label == 0:
+                seg_pos = []
                 with open(name + label_suffix) as lf:
                     seg_pos = [float(x.strip()) for x in lf]
 
                 if resize:
-                    dims = (int(round(newsize * original_image_width / original_image_height)), newsize)
+                    dims = (int(round(newsize * float(original_image_width) / original_image_height)), newsize)
                     image = image.resize(dims)
                     seg_pos_resize = [int(round(x * newsize / original_image_height)) for x in seg_pos]
                     seg_pos = seg_pos_resize
@@ -38,9 +39,14 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
                 # make label
                 label = [0] * image.size[0] # width = image.size[0]
                 for pos in seg_pos:
+                    if pos > image.size[0]:
+                        print name
+                        print image.size[0]
+                        print pos
                     label[pos - 1] = 1
 
             elif multi_label == 1:
+                seg_pos = []
                 with open(name + label_suffix) as lf:
                     seg_pos = [x.strip().split(' ') for x in lf]
 
@@ -54,8 +60,14 @@ def read_file(filename, outdir, resize=False, newsize=1, multi_label=multi_label
                 label = [0] * image.size[0] # width = image.size[0]
                 for item in seg_pos:
                     label[min(item[0] - 1, image.size[0] - 1)] = item[1]
+            
+            elif multi_label == 2:
+                label = []
+                if resize:
+                    dims = (int(round(newsize * float(original_image_width) / original_image_height)), newsize)
+                    image = image.resize(dims)
 
-            else:
+            else: # for word segmentation, the whole space area are segment area
                 with open(name + label_suffix) as lf:
                     seg_pos = [x.strip().split(' ') for x in lf]
 
@@ -105,7 +117,7 @@ def get_all_filename(pathname):
     names = os.listdir(pathname)
     for name in names:
         char = name.split('.')
-        if char[1] == 'txt':
+        if char[-1] == image_suffix[5:]:
             filename_list.append(os.path.join(pathname, char[0]))
 
     return filename_list
@@ -133,20 +145,22 @@ def make_readfile(datadir, outputdir, has_subfolder=False):
     filename = os.path.join(outputdir, base_filename + str(readfile_count) + '.txt')
     f = open(filename, 'w')
     file_list.append(filename)
-    for item in name_list:
+    for i,item in enumerate(name_list):
         f.write(os.path.join(datadir, item))
         f.write('\n')
         cnt += 1
         if cnt % filesize == 0:
             f.close()
             readfile_count += 1
-
+            if i == len(name_list) - 1:
+                break
             filename = os.path.join(outputdir, base_filename + str(readfile_count) + '.txt')
             f = open(filename, 'w')
             file_list.append(filename)
             cnt = 0
     if not f.closed:
         f.close()
+    readfile_count += 1
     return file_list
 
 def get_readfile(readfile_dir):
@@ -178,11 +192,11 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/seg_cnn/train_org_for_space_3']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_for_space_3'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_for_space_3'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/father/father_train']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/trainfile_real_father'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/seg_cnn/traindata_real_father'
     has_readfile = False
-    has_subfolder = False
+    has_subfolder = True
     
     if not os.path.exists(data_outdir):
         os.mkdir(data_outdir)
@@ -200,4 +214,5 @@ if __name__ == '__main__':
         else:
             file_list = make_readfile(datadir, readfile_outdir, has_subfolder)
     print "Begin bundle data"
+    print file_list
     bundle_data(file_list, data_outdir)

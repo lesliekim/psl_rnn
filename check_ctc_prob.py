@@ -39,7 +39,7 @@ for img in batch_img:
     print "image shape " + str(img.shape)
     '''
     # draw 
-    #utils.draw_pos_on_image(ctc_pos, img, os.path.join(output_dir, new_image_name))
+    utils.draw_pos_on_image(ctc_pos, img, os.path.join(output_dir, new_image_name))
     
     # segment result for later process
-    utils.seg_image(ctc_pos, img, image_base, output_dir)
+    #utils.seg_image(ctc_pos, img, image_base, output_dir)

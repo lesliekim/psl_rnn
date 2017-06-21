@@ -136,6 +136,7 @@ def make_readfile(datadir, outputdir, has_subfolder=False):
             cnt = 0
     if not f.closed:
         f.close()
+    readfile_count += 1
     return file_list
 
 def get_readfile(readfile_dir):
@@ -166,9 +167,12 @@ def movefile(src_dir, dst_dir):
 #movefile('/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_position_withspace',
 #'/home/jia/psl/tf_rnn/psl_data/father/synthesis_data_father_withspace')
 if __name__ == '__main__':
-    datadir = ['/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort']
-    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_trainfile'
-    data_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_traindata'
+    datadir = ['/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_2',
+        '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_3',
+        '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_4',
+        '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_7']
+    readfile_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_trainfile_2&3&4&7'
+    data_outdir = '/home/jia/psl/tf_rnn/psl_data/classify_cnn/9font_4style_0destort_traindata_2&3&4&7'
     has_readfile = False
     has_subfolder = False
     

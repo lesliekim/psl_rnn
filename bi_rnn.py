@@ -2,7 +2,7 @@ import time
 import os
 
 import utils
-from model import BiRnnModel
+from model import CnnRnnModel
 import tensorflow as tf
 import numpy as np
 
@@ -14,15 +14,15 @@ checkpoint_dir = "./model/" + trainID
 os.mkdir(checkpoint_dir)
 os.system("cp ./model.py " + checkpoint_dir)
 os.system("cp ./bi_rnn.py " + checkpoint_dir)
-os.system("cp ./test_bi_rnn.py" + checkpoint_dir)
-os.system("cp ./param.py" + checkpoint_dir)
+os.system("cp ./test_bi_rnn.py " + checkpoint_dir)
+os.system("cp ./param.py " + checkpoint_dir)
 logFilename = checkpoint_dir + "/log_" + trainID + ".txt"
 model_name = "English" + "_" + trainID
 
 
 # Training configs
 num_epochs = 20000
-batch_size = 16
+batch_size = 32
 disp_steps = 1000
 checkpoint_steps = 1
 
@@ -31,12 +31,12 @@ keep_prob_2 = 1.0
 keep_prob_3 = 1.0
 
 # continue training
-continue_train = 1 
-model_dir = './model/244ImagesRNNonly_new'
+continue_train = False 
+model_dir = './model/cnnrnn_structure_64_128_256/'
 
 # Loading the data
 
-train_loader = utils.Loader('../psl_data/244Images/traindata_sub',['data_0','data_1','data_2','data_3','data_4','data_5','data_6','data_7','data_8','data_9','data_10','data_11','data_12'], batch_size)
+train_loader = utils.Loader('../psl_data/244Images/traindata_sub',['data_{}'.format(n) for n in xrange(13)], batch_size)
 
 def LOG(Str):
     f = open(logFilename, "a")
@@ -54,7 +54,7 @@ LOG(keep_prob_3)
 # THE MAIN CODE!
 
 with tf.device('/cpu:0'):
-    model = BiRnnModel(batch_size)
+    model = CnnRnnModel(batch_size)
 
 
 config = tf.ConfigProto(allow_soft_placement=True)

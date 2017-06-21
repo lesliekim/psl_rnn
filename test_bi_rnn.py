@@ -5,7 +5,7 @@ import sys
 import tensorflow as tf
 import numpy as np
 import  utils
-from model import BiRnnModel
+from model import CnnRnnModel
 
 arg = sys.argv[1]
 epoch = int(sys.argv[2])
@@ -20,18 +20,23 @@ logFilename = os.path.join(model_dir, "test_%d_%s.txt" % (epoch, testID))
 # batch size
 batch_size = 32
 
-# save ctc flag
+# save  flag
 save_decode = False
 image_count = 1
+output_count = 1
 prob_folder_name = 'ctc' # it may not always be ctc
 prob_dir = os.path.join(model_dir, prob_folder_name)
-if not os.path.exists(prob_dir):
+if save_decode and (not os.path.exists(prob_dir)):
     os.mkdir(prob_dir)
 
 # Loading the data
+
 test_loader = utils.Loader('../psl_data/gulliver/testdata',\
         ['data_0','data_1','data_2','data_3'], batch_size)
-
+'''
+test_loader = utils.Loader('../psl_data/English_card_hard/email_binary_sub_traindata',\
+        ['data_0','data_1'], batch_size)
+'''
 def LOG(Str):
     f1 = open(logFilename, "a")
     print Str
@@ -43,7 +48,7 @@ LOG("Test ID: " + str(testID))
 # THE MAIN CODE!
 with tf.device('/gpu:1'):
 
-    model = BiRnnModel(batch_size)
+    model = CnnRnnModel(batch_size)
 
 config = tf.ConfigProto(allow_soft_placement=True)
 config.gpu_options.allow_growth = True
@@ -87,6 +92,25 @@ with tf.Session(config=config) as sess:
                         f.write(str(item[-1])) # for ctc probablity
                         #f.write(str(item))
                         f.write('\n')
+            '''
+            tmp_err, tmp_ctc_err, tmp_decoded = sess.run([model.err, model.cost, model.decoded[0]], feed_dict=feed)
+            
+            for j in xrange(0, batch_size):
+                tar = utils.get_row(batch_y_test, j)
+                truth_filename = os.path.join(prob_dir, 'ep{}_{}.std'.format(epoch, image_count))
+                image_count += 1
+                with open(truth_filename, 'w') as f:
+                    for item in tar:
+                        f.write(chr(item))
+
+            for j in xrange(0, batch_size):
+                decoded_str = utils.get_row(tmp_decoded, j)
+                result_filename = os.path.join(prob_dir, 'ep{}_{}.txt'.format(epoch, output_count))
+                output_count += 1
+                with open(result_filename, 'w') as f:
+                    for item in decoded_str:
+                        f.write(chr(item))
+            '''
 
         test_ctc_err += tmp_ctc_err * np.shape(batch_x_test)[0]
         test_err += tmp_err
